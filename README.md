@@ -56,6 +56,12 @@ A comprehensive Model Context Protocol (MCP) server for Zabbix integration using
 - `user_update` - Update user information
 - `user_delete` - Remove user accounts
 
+### 🔗 Proxy Management
+- `proxy_get` - Retrieve Zabbix proxies with filtering
+- `proxy_create` - Create new proxies
+- `proxy_update` - Update existing proxies
+- `proxy_delete` - Remove proxies
+
 ### 🔧 Maintenance Management
 - `maintenance_get` - Retrieve maintenance periods
 - `maintenance_create` - Schedule maintenance windows
@@ -120,6 +126,17 @@ A comprehensive Model Context Protocol (MCP) server for Zabbix integration using
 ### Optional Configuration
 
 - `READ_ONLY` - Set to `true`, `1`, or `yes` to enable read-only mode (only GET operations allowed)
+- `VERIFY_SSL` - Enable/disable SSL certificate verification (default: `true`)
+
+### Transport Configuration
+
+- `ZABBIX_MCP_TRANSPORT` - Transport type: `stdio` (default) or `streamable-http`
+
+**HTTP Transport Configuration** (only used when `ZABBIX_MCP_TRANSPORT=streamable-http`):
+- `ZABBIX_MCP_HOST` - Server host (default: `127.0.0.1`)
+- `ZABBIX_MCP_PORT` - Server port (default: `8000`)
+- `ZABBIX_MCP_STATELESS_HTTP` - Stateless mode (default: `false`)
+- `AUTH_TYPE` - Must be set to `no-auth` for streamable-http transport
 
 ## Usage
 
@@ -134,6 +151,30 @@ uv run python scripts/start_server.py
 ```bash
 uv run python src/zabbix_mcp_server.py
 ```
+
+### Transport Options
+
+The server supports two transport methods:
+
+#### STDIO Transport (Default)
+Standard input/output transport for MCP clients like Claude Desktop:
+```bash
+# Set in .env or environment
+ZABBIX_MCP_TRANSPORT=stdio
+```
+
+#### HTTP Transport
+HTTP-based transport for web integrations:
+```bash
+# Set in .env or environment
+ZABBIX_MCP_TRANSPORT=streamable-http
+ZABBIX_MCP_HOST=127.0.0.1
+ZABBIX_MCP_PORT=8000
+ZABBIX_MCP_STATELESS_HTTP=false
+AUTH_TYPE=no-auth
+```
+
+**Note:** When using `streamable-http` transport, `AUTH_TYPE` must be set to `no-auth`.
 
 ### Testing
 
@@ -190,6 +231,20 @@ history_get(
     itemids=["12345"],
     time_from=1640995200,
     limit=100
+)
+```
+
+**Get all proxies:**
+```python
+proxy_get()
+```
+
+**Create a new active proxy:**
+```python
+proxy_create(
+    host="proxy-01",
+    status=5,
+    description="Main datacenter proxy"
 )
 ```
 

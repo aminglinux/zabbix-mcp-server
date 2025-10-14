@@ -13,7 +13,7 @@ License: MIT
 import os
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastmcp import FastMCP
 from zabbix_utils import ZabbixAPI
 from dotenv import load_dotenv
@@ -56,6 +56,11 @@ def get_zabbix_client() -> ZabbixAPI:
         
         # Initialize client
         zabbix_api = ZabbixAPI(url=url)
+        
+        # Configure SSL verification
+        verify_ssl = os.getenv("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
+        zabbix_api.validate_certs = verify_ssl
+        logger.info(f"SSL certificate verification: {'enabled' if verify_ssl else 'disabled'}")
         
         # Authenticate using token or username/password
         token = os.getenv("ZABBIX_TOKEN")
@@ -111,7 +116,7 @@ def validate_read_only() -> None:
 def host_get(hostids: Optional[List[str]] = None, 
              groupids: Optional[List[str]] = None,
              templateids: Optional[List[str]] = None,
-             output: str = "extend",
+             output: Union[str, List[str]] = "extend",
              search: Optional[Dict[str, str]] = None,
              filter: Optional[Dict[str, Any]] = None,
              limit: Optional[int] = None) -> str:
@@ -121,7 +126,7 @@ def host_get(hostids: Optional[List[str]] = None,
         hostids: List of host IDs to retrieve
         groupids: List of host group IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format (extend, shorten, or specific fields)
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         limit: Maximum number of results
@@ -236,14 +241,14 @@ def host_delete(hostids: List[str]) -> str:
 # HOST GROUP MANAGEMENT
 @mcp.tool()
 def hostgroup_get(groupids: Optional[List[str]] = None,
-                  output: str = "extend",
+                  output: Union[str, List[str]] = "extend",
                   search: Optional[Dict[str, str]] = None,
                   filter: Optional[Dict[str, Any]] = None) -> str:
     """Get host groups from Zabbix.
     
     Args:
         groupids: List of group IDs to retrieve
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -322,7 +327,7 @@ def item_get(itemids: Optional[List[str]] = None,
              hostids: Optional[List[str]] = None,
              groupids: Optional[List[str]] = None,
              templateids: Optional[List[str]] = None,
-             output: str = "extend",
+             output: Union[str, List[str]] = "extend",
              search: Optional[Dict[str, str]] = None,
              filter: Optional[Dict[str, Any]] = None,
              limit: Optional[int] = None) -> str:
@@ -333,7 +338,7 @@ def item_get(itemids: Optional[List[str]] = None,
         hostids: List of host IDs to filter by
         groupids: List of host group IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         limit: Maximum number of results
@@ -461,7 +466,7 @@ def trigger_get(triggerids: Optional[List[str]] = None,
                 hostids: Optional[List[str]] = None,
                 groupids: Optional[List[str]] = None,
                 templateids: Optional[List[str]] = None,
-                output: str = "extend",
+                output: Union[str, List[str]] = "extend",
                 search: Optional[Dict[str, str]] = None,
                 filter: Optional[Dict[str, Any]] = None,
                 limit: Optional[int] = None) -> str:
@@ -472,7 +477,7 @@ def trigger_get(triggerids: Optional[List[str]] = None,
         hostids: List of host IDs to filter by
         groupids: List of host group IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         limit: Maximum number of results
@@ -591,7 +596,7 @@ def trigger_delete(triggerids: List[str]) -> str:
 def template_get(templateids: Optional[List[str]] = None,
                  groupids: Optional[List[str]] = None,
                  hostids: Optional[List[str]] = None,
-                 output: str = "extend",
+                 output: Union[str, List[str]] = "extend",
                  search: Optional[Dict[str, str]] = None,
                  filter: Optional[Dict[str, Any]] = None) -> str:
     """Get templates from Zabbix with optional filtering.
@@ -600,7 +605,7 @@ def template_get(templateids: Optional[List[str]] = None,
         templateids: List of template IDs to retrieve
         groupids: List of host group IDs to filter by
         hostids: List of host IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -709,7 +714,7 @@ def problem_get(eventids: Optional[List[str]] = None,
                 groupids: Optional[List[str]] = None,
                 hostids: Optional[List[str]] = None,
                 objectids: Optional[List[str]] = None,
-                output: str = "extend",
+                output: Union[str, List[str]] = "extend",
                 time_from: Optional[int] = None,
                 time_till: Optional[int] = None,
                 recent: bool = False,
@@ -722,7 +727,7 @@ def problem_get(eventids: Optional[List[str]] = None,
         groupids: List of host group IDs to filter by
         hostids: List of host IDs to filter by
         objectids: List of object IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         recent: Only recent problems
@@ -764,7 +769,7 @@ def event_get(eventids: Optional[List[str]] = None,
               groupids: Optional[List[str]] = None,
               hostids: Optional[List[str]] = None,
               objectids: Optional[List[str]] = None,
-              output: str = "extend",
+              output: Union[str, List[str]] = "extend",
               time_from: Optional[int] = None,
               time_till: Optional[int] = None,
               limit: Optional[int] = None) -> str:
@@ -775,7 +780,7 @@ def event_get(eventids: Optional[List[str]] = None,
         groupids: List of host group IDs to filter by
         hostids: List of host IDs to filter by
         objectids: List of object IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         limit: Maximum number of results
@@ -907,14 +912,14 @@ def trend_get(itemids: List[str], time_from: Optional[int] = None,
 # USER MANAGEMENT
 @mcp.tool()
 def user_get(userids: Optional[List[str]] = None,
-             output: str = "extend",
+             output: Union[str, List[str]] = "extend",
              search: Optional[Dict[str, str]] = None,
              filter: Optional[Dict[str, Any]] = None) -> str:
     """Get users from Zabbix with optional filtering.
     
     Args:
         userids: List of user IDs to retrieve
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1023,19 +1028,144 @@ def user_delete(userids: List[str]) -> str:
     return format_response(result)
 
 
+# PROXY MANAGEMENT
+@mcp.tool()
+def proxy_get(proxyids: Optional[List[str]] = None,
+              output: str = "extend",
+              search: Optional[Dict[str, str]] = None,
+              filter: Optional[Dict[str, Any]] = None,
+              limit: Optional[int] = None) -> str:
+    """Get proxies from Zabbix with optional filtering.
+    
+    Args:
+        proxyids: List of proxy IDs to retrieve
+        output: Output format (extend, shorten, or specific fields)
+        search: Search criteria
+        filter: Filter criteria
+        limit: Maximum number of results
+        
+    Returns:
+        str: JSON formatted list of proxies
+    """
+    client = get_zabbix_client()
+    params = {"output": output}
+    
+    if proxyids:
+        params["proxyids"] = proxyids
+    if search:
+        params["search"] = search
+    if filter:
+        params["filter"] = filter
+    if limit:
+        params["limit"] = limit
+    
+    result = client.proxy.get(**params)
+    return format_response(result)
+
+
+@mcp.tool()
+def proxy_create(host: str, status: int = 5,
+                 description: Optional[str] = None,
+                 tls_connect: int = 1,
+                 tls_accept: int = 1) -> str:
+    """Create a new proxy in Zabbix.
+    
+    Args:
+        host: Proxy name
+        status: Proxy status (5=active proxy, 6=passive proxy)
+        description: Proxy description
+        tls_connect: TLS connection settings (1=no encryption, 2=PSK, 4=certificate)
+        tls_accept: TLS accept settings (1=no encryption, 2=PSK, 4=certificate)
+        
+    Returns:
+        str: JSON formatted creation result
+    """
+    validate_read_only()
+    
+    client = get_zabbix_client()
+    params = {
+        "host": host,
+        "status": status,
+        "tls_connect": tls_connect,
+        "tls_accept": tls_accept
+    }
+    
+    if description:
+        params["description"] = description
+    
+    result = client.proxy.create(**params)
+    return format_response(result)
+
+
+@mcp.tool()
+def proxy_update(proxyid: str, host: Optional[str] = None,
+                 status: Optional[int] = None,
+                 description: Optional[str] = None,
+                 tls_connect: Optional[int] = None,
+                 tls_accept: Optional[int] = None) -> str:
+    """Update an existing proxy in Zabbix.
+    
+    Args:
+        proxyid: Proxy ID to update
+        host: New proxy name
+        status: New proxy status (5=active proxy, 6=passive proxy)
+        description: New proxy description
+        tls_connect: New TLS connection settings
+        tls_accept: New TLS accept settings
+        
+    Returns:
+        str: JSON formatted update result
+    """
+    validate_read_only()
+    
+    client = get_zabbix_client()
+    params = {"proxyid": proxyid}
+    
+    if host:
+        params["host"] = host
+    if status is not None:
+        params["status"] = status
+    if description:
+        params["description"] = description
+    if tls_connect is not None:
+        params["tls_connect"] = tls_connect
+    if tls_accept is not None:
+        params["tls_accept"] = tls_accept
+    
+    result = client.proxy.update(**params)
+    return format_response(result)
+
+
+@mcp.tool()
+def proxy_delete(proxyids: List[str]) -> str:
+    """Delete proxies from Zabbix.
+    
+    Args:
+        proxyids: List of proxy IDs to delete
+        
+    Returns:
+        str: JSON formatted deletion result
+    """
+    validate_read_only()
+    
+    client = get_zabbix_client()
+    result = client.proxy.delete(*proxyids)
+    return format_response(result)
+
+
 # MAINTENANCE MANAGEMENT
 @mcp.tool()
 def maintenance_get(maintenanceids: Optional[List[str]] = None,
                     groupids: Optional[List[str]] = None,
                     hostids: Optional[List[str]] = None,
-                    output: str = "extend") -> str:
+                    output: Union[str, List[str]] = "extend") -> str:
     """Get maintenance periods from Zabbix.
     
     Args:
         maintenanceids: List of maintenance IDs to retrieve
         groupids: List of host group IDs to filter by
         hostids: List of host IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         
     Returns:
         str: JSON formatted list of maintenance periods
@@ -1152,7 +1282,7 @@ def maintenance_delete(maintenanceids: List[str]) -> str:
 def graph_get(graphids: Optional[List[str]] = None,
               hostids: Optional[List[str]] = None,
               templateids: Optional[List[str]] = None,
-              output: str = "extend",
+              output: Union[str, List[str]] = "extend",
               search: Optional[Dict[str, str]] = None,
               filter: Optional[Dict[str, Any]] = None) -> str:
     """Get graphs from Zabbix with optional filtering.
@@ -1161,7 +1291,7 @@ def graph_get(graphids: Optional[List[str]] = None,
         graphids: List of graph IDs to retrieve
         hostids: List of host IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1191,7 +1321,7 @@ def graph_get(graphids: Optional[List[str]] = None,
 def discoveryrule_get(itemids: Optional[List[str]] = None,
                       hostids: Optional[List[str]] = None,
                       templateids: Optional[List[str]] = None,
-                      output: str = "extend",
+                      output: Union[str, List[str]] = "extend",
                       search: Optional[Dict[str, str]] = None,
                       filter: Optional[Dict[str, Any]] = None) -> str:
     """Get discovery rules from Zabbix with optional filtering.
@@ -1200,7 +1330,7 @@ def discoveryrule_get(itemids: Optional[List[str]] = None,
         itemids: List of discovery rule IDs to retrieve
         hostids: List of host IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1230,7 +1360,7 @@ def discoveryrule_get(itemids: Optional[List[str]] = None,
 def itemprototype_get(itemids: Optional[List[str]] = None,
                       discoveryids: Optional[List[str]] = None,
                       hostids: Optional[List[str]] = None,
-                      output: str = "extend",
+                      output: Union[str, List[str]] = "extend",
                       search: Optional[Dict[str, str]] = None,
                       filter: Optional[Dict[str, Any]] = None) -> str:
     """Get item prototypes from Zabbix with optional filtering.
@@ -1239,7 +1369,7 @@ def itemprototype_get(itemids: Optional[List[str]] = None,
         itemids: List of item prototype IDs to retrieve
         discoveryids: List of discovery rule IDs to filter by
         hostids: List of host IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1317,7 +1447,7 @@ def configuration_import(format: str, source: str,
 @mcp.tool()
 def usermacro_get(globalmacroids: Optional[List[str]] = None,
                   hostids: Optional[List[str]] = None,
-                  output: str = "extend",
+                  output: Union[str, List[str]] = "extend",
                   search: Optional[Dict[str, str]] = None,
                   filter: Optional[Dict[str, Any]] = None) -> str:
     """Get global macros from Zabbix with optional filtering.
@@ -1325,7 +1455,7 @@ def usermacro_get(globalmacroids: Optional[List[str]] = None,
     Args:
         globalmacroids: List of global macro IDs to retrieve
         hostids: List of host IDs to filter by (for host macros)
-        output: Output format (extend, shorten, or specific fields)
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1361,16 +1491,66 @@ def apiinfo_version() -> str:
     return format_response(result)
 
 
+def get_transport_config() -> Dict[str, Any]:
+    """Get transport configuration from environment variables.
+    
+    Returns:
+        Dict[str, Any]: Transport configuration
+        
+    Raises:
+        ValueError: If invalid transport configuration
+    """
+    transport = os.getenv("ZABBIX_MCP_TRANSPORT", "stdio").lower()
+    
+    if transport not in ["stdio", "streamable-http"]:
+        raise ValueError(f"Invalid ZABBIX_MCP_TRANSPORT: {transport}. Must be 'stdio' or 'streamable-http'")
+    
+    config = {"transport": transport}
+    
+    if transport == "streamable-http":
+        # Check AUTH_TYPE requirement
+        auth_type = os.getenv("AUTH_TYPE", "").lower()
+        if auth_type != "no-auth":
+            raise ValueError("AUTH_TYPE must be set to 'no-auth' when using streamable-http transport")
+        
+        # Get HTTP configuration with defaults
+        config.update({
+            "host": os.getenv("ZABBIX_MCP_HOST", "127.0.0.1"),
+            "port": int(os.getenv("ZABBIX_MCP_PORT", "8000")),
+            "stateless_http": os.getenv("ZABBIX_MCP_STATELESS_HTTP", "false").lower() in ("true", "1", "yes")
+        })
+        
+        logger.info(f"HTTP transport configured: {config['host']}:{config['port']}, stateless_http={config['stateless_http']}")
+    
+    return config
+
+
 def main():
     """Main entry point for uv execution."""
     logger.info("Starting Zabbix MCP Server")
+    
+    # Get transport configuration
+    try:
+        transport_config = get_transport_config()
+        logger.info(f"Transport: {transport_config['transport']}")
+    except ValueError as e:
+        logger.error(f"Transport configuration error: {e}")
+        return 1
     
     # Log configuration
     logger.info(f"Read-only mode: {is_read_only()}")
     logger.info(f"Zabbix URL: {os.getenv('ZABBIX_URL', 'Not configured')}")
     
     try:
-        mcp.run()
+        if transport_config["transport"] == "stdio":
+            mcp.run()
+        else:  # streamable-http
+            mcp.run(
+                transport="streamable-http",
+                host=transport_config["host"],
+                port=transport_config["port"],
+                stateless_http=transport_config["stateless_http"]
+            )
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
