@@ -138,6 +138,12 @@ def show_configuration() -> None:
     print(f"Read-only mode: {read_only_str}")
     logger.info(f"Read-only mode: {read_only_str}")
     
+    # SSL verification
+    verify_ssl = os.getenv('VERIFY_SSL', 'true').lower() in ('true', '1', 'yes')
+    verify_ssl_str = 'Enabled' if verify_ssl else 'Disabled'
+    print(f"SSL verification: {verify_ssl_str}")
+    logger.info(f"SSL verification: {verify_ssl_str}")
+    
     # Debug mode
     debug_mode = os.getenv('DEBUG', 'false').lower() in ('true', '1', 'yes')
     debug_str = 'Enabled' if debug_mode else 'Disabled'

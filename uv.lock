@@ -1363,7 +1363,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=2.12.4" },
-    { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "zabbix-utils", specifier = ">=2.0.3" },
 ]
 

@@ -86,6 +86,10 @@ def test_environment() -> bool:
     read_only = os.getenv("READ_ONLY", "true").lower() in ("true", "1", "yes")
     print(f"ℹ️  Read-only mode: {'Enabled' if read_only else 'Disabled'}")
     
+    # Check SSL verification
+    verify_ssl = os.getenv("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
+    print(f"ℹ️  SSL verification: {'Enabled' if verify_ssl else 'Disabled'}")
+    
     return True
 
 
@@ -182,7 +186,7 @@ def test_transport_config() -> bool:
         if transport == "streamable-http":
             print(f"  - Host: {config['host']}")
             print(f"  - Port: {config['port']}")
-            print(f"  - Stateless: {config['stateless']}")
+            print(f"  - Stateless: {config['stateless_http']}")
             
             # Check AUTH_TYPE requirement
             auth_type = os.getenv("AUTH_TYPE", "").lower()
@@ -191,6 +195,8 @@ def test_transport_config() -> bool:
             else:
                 print("  ❌ AUTH_TYPE must be set to 'no-auth' for HTTP transport")
                 return False
+        else:
+            print("  ✅ STDIO transport configured correctly")
         
         return True
         
