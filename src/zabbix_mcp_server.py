@@ -13,7 +13,7 @@ License: MIT
 import os
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastmcp import FastMCP
 from zabbix_utils import ZabbixAPI
 from dotenv import load_dotenv
@@ -111,7 +111,7 @@ def validate_read_only() -> None:
 def host_get(hostids: Optional[List[str]] = None, 
              groupids: Optional[List[str]] = None,
              templateids: Optional[List[str]] = None,
-             output: str = "extend",
+             output: Union[str, List[str]] = "extend",
              search: Optional[Dict[str, str]] = None,
              filter: Optional[Dict[str, Any]] = None,
              limit: Optional[int] = None) -> str:
@@ -121,7 +121,7 @@ def host_get(hostids: Optional[List[str]] = None,
         hostids: List of host IDs to retrieve
         groupids: List of host group IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format (extend, shorten, or specific fields)
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         limit: Maximum number of results
@@ -236,14 +236,14 @@ def host_delete(hostids: List[str]) -> str:
 # HOST GROUP MANAGEMENT
 @mcp.tool()
 def hostgroup_get(groupids: Optional[List[str]] = None,
-                  output: str = "extend",
+                  output: Union[str, List[str]] = "extend",
                   search: Optional[Dict[str, str]] = None,
                   filter: Optional[Dict[str, Any]] = None) -> str:
     """Get host groups from Zabbix.
     
     Args:
         groupids: List of group IDs to retrieve
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -322,7 +322,7 @@ def item_get(itemids: Optional[List[str]] = None,
              hostids: Optional[List[str]] = None,
              groupids: Optional[List[str]] = None,
              templateids: Optional[List[str]] = None,
-             output: str = "extend",
+             output: Union[str, List[str]] = "extend",
              search: Optional[Dict[str, str]] = None,
              filter: Optional[Dict[str, Any]] = None,
              limit: Optional[int] = None) -> str:
@@ -333,7 +333,7 @@ def item_get(itemids: Optional[List[str]] = None,
         hostids: List of host IDs to filter by
         groupids: List of host group IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         limit: Maximum number of results
@@ -461,7 +461,7 @@ def trigger_get(triggerids: Optional[List[str]] = None,
                 hostids: Optional[List[str]] = None,
                 groupids: Optional[List[str]] = None,
                 templateids: Optional[List[str]] = None,
-                output: str = "extend",
+                output: Union[str, List[str]] = "extend",
                 search: Optional[Dict[str, str]] = None,
                 filter: Optional[Dict[str, Any]] = None,
                 limit: Optional[int] = None) -> str:
@@ -472,7 +472,7 @@ def trigger_get(triggerids: Optional[List[str]] = None,
         hostids: List of host IDs to filter by
         groupids: List of host group IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         limit: Maximum number of results
@@ -591,7 +591,7 @@ def trigger_delete(triggerids: List[str]) -> str:
 def template_get(templateids: Optional[List[str]] = None,
                  groupids: Optional[List[str]] = None,
                  hostids: Optional[List[str]] = None,
-                 output: str = "extend",
+                 output: Union[str, List[str]] = "extend",
                  search: Optional[Dict[str, str]] = None,
                  filter: Optional[Dict[str, Any]] = None) -> str:
     """Get templates from Zabbix with optional filtering.
@@ -600,7 +600,7 @@ def template_get(templateids: Optional[List[str]] = None,
         templateids: List of template IDs to retrieve
         groupids: List of host group IDs to filter by
         hostids: List of host IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -709,7 +709,7 @@ def problem_get(eventids: Optional[List[str]] = None,
                 groupids: Optional[List[str]] = None,
                 hostids: Optional[List[str]] = None,
                 objectids: Optional[List[str]] = None,
-                output: str = "extend",
+                output: Union[str, List[str]] = "extend",
                 time_from: Optional[int] = None,
                 time_till: Optional[int] = None,
                 recent: bool = False,
@@ -722,7 +722,7 @@ def problem_get(eventids: Optional[List[str]] = None,
         groupids: List of host group IDs to filter by
         hostids: List of host IDs to filter by
         objectids: List of object IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         recent: Only recent problems
@@ -764,7 +764,7 @@ def event_get(eventids: Optional[List[str]] = None,
               groupids: Optional[List[str]] = None,
               hostids: Optional[List[str]] = None,
               objectids: Optional[List[str]] = None,
-              output: str = "extend",
+              output: Union[str, List[str]] = "extend",
               time_from: Optional[int] = None,
               time_till: Optional[int] = None,
               limit: Optional[int] = None) -> str:
@@ -775,7 +775,7 @@ def event_get(eventids: Optional[List[str]] = None,
         groupids: List of host group IDs to filter by
         hostids: List of host IDs to filter by
         objectids: List of object IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         limit: Maximum number of results
@@ -907,14 +907,14 @@ def trend_get(itemids: List[str], time_from: Optional[int] = None,
 # USER MANAGEMENT
 @mcp.tool()
 def user_get(userids: Optional[List[str]] = None,
-             output: str = "extend",
+             output: Union[str, List[str]] = "extend",
              search: Optional[Dict[str, str]] = None,
              filter: Optional[Dict[str, Any]] = None) -> str:
     """Get users from Zabbix with optional filtering.
     
     Args:
         userids: List of user IDs to retrieve
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1028,14 +1028,14 @@ def user_delete(userids: List[str]) -> str:
 def maintenance_get(maintenanceids: Optional[List[str]] = None,
                     groupids: Optional[List[str]] = None,
                     hostids: Optional[List[str]] = None,
-                    output: str = "extend") -> str:
+                    output: Union[str, List[str]] = "extend") -> str:
     """Get maintenance periods from Zabbix.
     
     Args:
         maintenanceids: List of maintenance IDs to retrieve
         groupids: List of host group IDs to filter by
         hostids: List of host IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         
     Returns:
         str: JSON formatted list of maintenance periods
@@ -1152,7 +1152,7 @@ def maintenance_delete(maintenanceids: List[str]) -> str:
 def graph_get(graphids: Optional[List[str]] = None,
               hostids: Optional[List[str]] = None,
               templateids: Optional[List[str]] = None,
-              output: str = "extend",
+              output: Union[str, List[str]] = "extend",
               search: Optional[Dict[str, str]] = None,
               filter: Optional[Dict[str, Any]] = None) -> str:
     """Get graphs from Zabbix with optional filtering.
@@ -1161,7 +1161,7 @@ def graph_get(graphids: Optional[List[str]] = None,
         graphids: List of graph IDs to retrieve
         hostids: List of host IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1191,7 +1191,7 @@ def graph_get(graphids: Optional[List[str]] = None,
 def discoveryrule_get(itemids: Optional[List[str]] = None,
                       hostids: Optional[List[str]] = None,
                       templateids: Optional[List[str]] = None,
-                      output: str = "extend",
+                      output: Union[str, List[str]] = "extend",
                       search: Optional[Dict[str, str]] = None,
                       filter: Optional[Dict[str, Any]] = None) -> str:
     """Get discovery rules from Zabbix with optional filtering.
@@ -1200,7 +1200,7 @@ def discoveryrule_get(itemids: Optional[List[str]] = None,
         itemids: List of discovery rule IDs to retrieve
         hostids: List of host IDs to filter by
         templateids: List of template IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1230,7 +1230,7 @@ def discoveryrule_get(itemids: Optional[List[str]] = None,
 def itemprototype_get(itemids: Optional[List[str]] = None,
                       discoveryids: Optional[List[str]] = None,
                       hostids: Optional[List[str]] = None,
-                      output: str = "extend",
+                      output: Union[str, List[str]] = "extend",
                       search: Optional[Dict[str, str]] = None,
                       filter: Optional[Dict[str, Any]] = None) -> str:
     """Get item prototypes from Zabbix with optional filtering.
@@ -1239,7 +1239,7 @@ def itemprototype_get(itemids: Optional[List[str]] = None,
         itemids: List of item prototype IDs to retrieve
         discoveryids: List of discovery rule IDs to filter by
         hostids: List of host IDs to filter by
-        output: Output format
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
@@ -1317,7 +1317,7 @@ def configuration_import(format: str, source: str,
 @mcp.tool()
 def usermacro_get(globalmacroids: Optional[List[str]] = None,
                   hostids: Optional[List[str]] = None,
-                  output: str = "extend",
+                  output: Union[str, List[str]] = "extend",
                   search: Optional[Dict[str, str]] = None,
                   filter: Optional[Dict[str, Any]] = None) -> str:
     """Get global macros from Zabbix with optional filtering.
@@ -1325,7 +1325,7 @@ def usermacro_get(globalmacroids: Optional[List[str]] = None,
     Args:
         globalmacroids: List of global macro IDs to retrieve
         hostids: List of host IDs to filter by (for host macros)
-        output: Output format (extend, shorten, or specific fields)
+        output: Output format (extend or list of specific fields)
         search: Search criteria
         filter: Filter criteria
         
