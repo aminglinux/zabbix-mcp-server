@@ -54,14 +54,13 @@ def get_zabbix_client() -> ZabbixAPI:
         
         logger.info(f"Initializing Zabbix API client for {url}")
         
-        # Initialize client
-        zabbix_api = ZabbixAPI(url=url)
-        
         # Configure SSL verification
         verify_ssl = os.getenv("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
-        zabbix_api.validate_certs = verify_ssl
         logger.info(f"SSL certificate verification: {'enabled' if verify_ssl else 'disabled'}")
         
+        # Initialize client
+        zabbix_api = ZabbixAPI(url=url, validate_certs=verify_ssl)
+
         # Authenticate using token or username/password
         token = os.getenv("ZABBIX_TOKEN")
         if token:
