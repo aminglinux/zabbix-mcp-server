@@ -315,17 +315,20 @@ def host_update(hostid: str, host: Optional[str] = None,
 
 
 @mcp.tool()
-def host_delete(hostids: List[str]) -> str:
+def host_delete(hostids: Union[List[str], str]) -> str:
     """Delete hosts from Zabbix.
-    
+
     Args:
-        hostids: List of host IDs to delete
-        
+        hostids: List of host IDs to delete (or JSON string representation)
+
     Returns:
         str: JSON formatted deletion result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    hostids = parse_list_param(hostids)
+
     client = get_zabbix_client()
     result = client.host.delete(*hostids)
     return format_response(result)
@@ -404,17 +407,20 @@ def hostgroup_update(groupid: str, name: str) -> str:
 
 
 @mcp.tool()
-def hostgroup_delete(groupids: List[str]) -> str:
+def hostgroup_delete(groupids: Union[List[str], str]) -> str:
     """Delete host groups from Zabbix.
-    
+
     Args:
-        groupids: List of group IDs to delete
-        
+        groupids: List of group IDs to delete (or JSON string representation)
+
     Returns:
         str: JSON formatted deletion result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    groupids = parse_list_param(groupids)
+
     client = get_zabbix_client()
     result = client.hostgroup.delete(*groupids)
     return format_response(result)
@@ -559,17 +565,20 @@ def item_update(itemid: str, name: Optional[str] = None,
 
 
 @mcp.tool()
-def item_delete(itemids: List[str]) -> str:
+def item_delete(itemids: Union[List[str], str]) -> str:
     """Delete items from Zabbix.
-    
+
     Args:
-        itemids: List of item IDs to delete
-        
+        itemids: List of item IDs to delete (or JSON string representation)
+
     Returns:
         str: JSON formatted deletion result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    itemids = parse_list_param(itemids)
+
     client = get_zabbix_client()
     result = client.item.delete(*itemids)
     return format_response(result)
@@ -728,17 +737,20 @@ def trigger_update(triggerid: str, description: Optional[str] = None,
 
 
 @mcp.tool()
-def trigger_delete(triggerids: List[str]) -> str:
+def trigger_delete(triggerids: Union[List[str], str]) -> str:
     """Delete triggers from Zabbix.
-    
+
     Args:
-        triggerids: List of trigger IDs to delete
-        
+        triggerids: List of trigger IDs to delete (or JSON string representation)
+
     Returns:
         str: JSON formatted deletion result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    triggerids = parse_list_param(triggerids)
+
     client = get_zabbix_client()
     result = client.trigger.delete(*triggerids)
     return format_response(result)
@@ -856,17 +868,20 @@ def template_update(templateid: str, host: Optional[str] = None,
 
 
 @mcp.tool()
-def template_delete(templateids: List[str]) -> str:
+def template_delete(templateids: Union[List[str], str]) -> str:
     """Delete templates from Zabbix.
-    
+
     Args:
-        templateids: List of template IDs to delete
-        
+        templateids: List of template IDs to delete (or JSON string representation)
+
     Returns:
         str: JSON formatted deletion result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    templateids = parse_list_param(templateids)
+
     client = get_zabbix_client()
     result = client.template.delete(*templateids)
     return format_response(result)
@@ -1001,55 +1016,61 @@ def event_get(eventids: Union[List[str], str, None] = None,
 
 
 @mcp.tool()
-def event_acknowledge(eventids: List[str], action: int = 1,
+def event_acknowledge(eventids: Union[List[str], str], action: int = 1,
                       message: Optional[str] = None) -> str:
     """Acknowledge events in Zabbix.
-    
+
     Args:
-        eventids: List of event IDs to acknowledge
+        eventids: List of event IDs to acknowledge (or JSON string representation)
         action: Acknowledge action (1=acknowledge, 2=close, etc.)
         message: Acknowledge message
-        
+
     Returns:
         str: JSON formatted acknowledgment result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    eventids = parse_list_param(eventids)
+
     client = get_zabbix_client()
     params = {
         "eventids": eventids,
         "action": action
     }
-    
+
     if message:
         params["message"] = message
-    
+
     result = client.event.acknowledge(**params)
     return format_response(result)
 
 
 # HISTORY MANAGEMENT
 @mcp.tool()
-def history_get(itemids: List[str], history: int = 0,
+def history_get(itemids: Union[List[str], str], history: int = 0,
                 time_from: Optional[int] = None,
                 time_till: Optional[int] = None,
                 limit: Optional[int] = None,
                 sortfield: str = "clock",
                 sortorder: str = "DESC") -> str:
     """Get history data from Zabbix.
-    
+
     Args:
-        itemids: List of item IDs to get history for
+        itemids: List of item IDs to get history for (or JSON string representation)
         history: History type (0=float, 1=character, 2=log, 3=unsigned, 4=text)
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         limit: Maximum number of results
         sortfield: Field to sort by
         sortorder: Sort order (ASC or DESC)
-        
+
     Returns:
         str: JSON formatted history data
     """
+    # Parse parameters
+    itemids = parse_list_param(itemids)
+
     client = get_zabbix_client()
     params = {
         "itemids": itemids,
@@ -1057,44 +1078,47 @@ def history_get(itemids: List[str], history: int = 0,
         "sortfield": sortfield,
         "sortorder": sortorder
     }
-    
+
     if time_from:
         params["time_from"] = time_from
     if time_till:
         params["time_till"] = time_till
     if limit:
         params["limit"] = limit
-    
+
     result = client.history.get(**params)
     return format_response(result)
 
 
 # TREND MANAGEMENT
 @mcp.tool()
-def trend_get(itemids: List[str], time_from: Optional[int] = None,
+def trend_get(itemids: Union[List[str], str], time_from: Optional[int] = None,
               time_till: Optional[int] = None,
               limit: Optional[int] = None) -> str:
     """Get trend data from Zabbix.
-    
+
     Args:
-        itemids: List of item IDs to get trends for
+        itemids: List of item IDs to get trends for (or JSON string representation)
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         limit: Maximum number of results
-        
+
     Returns:
         str: JSON formatted trend data
     """
+    # Parse parameters
+    itemids = parse_list_param(itemids)
+
     client = get_zabbix_client()
     params = {"itemids": itemids}
-    
+
     if time_from:
         params["time_from"] = time_from
     if time_till:
         params["time_till"] = time_till
     if limit:
         params["limit"] = limit
-    
+
     result = client.trend.get(**params)
     return format_response(result)
 
@@ -1211,17 +1235,20 @@ def user_update(userid: str, username: Optional[str] = None,
 
 
 @mcp.tool()
-def user_delete(userids: List[str]) -> str:
+def user_delete(userids: Union[List[str], str]) -> str:
     """Delete users from Zabbix.
-    
+
     Args:
-        userids: List of user IDs to delete
-        
+        userids: List of user IDs to delete (or JSON string representation)
+
     Returns:
         str: JSON formatted deletion result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    userids = parse_list_param(userids)
+
     client = get_zabbix_client()
     result = client.user.delete(*userids)
     return format_response(result)
@@ -1342,17 +1369,20 @@ def proxy_update(proxyid: str, host: Optional[str] = None,
 
 
 @mcp.tool()
-def proxy_delete(proxyids: List[str]) -> str:
+def proxy_delete(proxyids: Union[List[str], str]) -> str:
     """Delete proxies from Zabbix.
-    
+
     Args:
-        proxyids: List of proxy IDs to delete
-        
+        proxyids: List of proxy IDs to delete (or JSON string representation)
+
     Returns:
         str: JSON formatted deletion result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    proxyids = parse_list_param(proxyids)
+
     client = get_zabbix_client()
     result = client.proxy.delete(*proxyids)
     return format_response(result)
@@ -1360,21 +1390,26 @@ def proxy_delete(proxyids: List[str]) -> str:
 
 # MAINTENANCE MANAGEMENT
 @mcp.tool()
-def maintenance_get(maintenanceids: Optional[List[str]] = None,
-                    groupids: Optional[List[str]] = None,
-                    hostids: Optional[List[str]] = None,
+def maintenance_get(maintenanceids: Union[List[str], str, None] = None,
+                    groupids: Union[List[str], str, None] = None,
+                    hostids: Union[List[str], str, None] = None,
                     output: Union[str, List[str]] = "extend") -> str:
     """Get maintenance periods from Zabbix.
-    
+
     Args:
-        maintenanceids: List of maintenance IDs to retrieve
-        groupids: List of host group IDs to filter by
-        hostids: List of host IDs to filter by
+        maintenanceids: List of maintenance IDs to retrieve (or JSON string representation)
+        groupids: List of host group IDs to filter by (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        
+
     Returns:
         str: JSON formatted list of maintenance periods
     """
+    # Parse parameters
+    maintenanceids = parse_list_param(maintenanceids)
+    groupids = parse_list_param(groupids)
+    hostids = parse_list_param(hostids)
+
     client = get_zabbix_client()
     params = {"output": output}
     
@@ -1472,17 +1507,20 @@ def maintenance_update(maintenanceid: str, name: Optional[str] = None,
 
 
 @mcp.tool()
-def maintenance_delete(maintenanceids: List[str]) -> str:
+def maintenance_delete(maintenanceids: Union[List[str], str]) -> str:
     """Delete maintenance periods from Zabbix.
-    
+
     Args:
-        maintenanceids: List of maintenance IDs to delete
-        
+        maintenanceids: List of maintenance IDs to delete (or JSON string representation)
+
     Returns:
         str: JSON formatted deletion result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    maintenanceids = parse_list_param(maintenanceids)
+
     client = get_zabbix_client()
     result = client.maintenance.delete(*maintenanceids)
     return format_response(result)
@@ -1490,28 +1528,35 @@ def maintenance_delete(maintenanceids: List[str]) -> str:
 
 # GRAPH MANAGEMENT
 @mcp.tool()
-def graph_get(graphids: Optional[List[str]] = None,
-              hostids: Optional[List[str]] = None,
-              templateids: Optional[List[str]] = None,
+def graph_get(graphids: Union[List[str], str, None] = None,
+              hostids: Union[List[str], str, None] = None,
+              templateids: Union[List[str], str, None] = None,
               output: Union[str, List[str]] = "extend",
-              search: Optional[Dict[str, str]] = None,
-              filter: Optional[Dict[str, Any]] = None) -> str:
+              search: Union[Dict[str, str], str, None] = None,
+              filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get graphs from Zabbix with optional filtering.
-    
+
     Args:
-        graphids: List of graph IDs to retrieve
-        hostids: List of host IDs to filter by
-        templateids: List of template IDs to filter by
+        graphids: List of graph IDs to retrieve (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
+        templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
-        
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
+
     Returns:
         str: JSON formatted list of graphs
     """
+    # Parse parameters
+    graphids = parse_list_param(graphids)
+    hostids = parse_list_param(hostids)
+    templateids = parse_list_param(templateids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     client = get_zabbix_client()
     params = {"output": output}
-    
+
     if graphids:
         params["graphids"] = graphids
     if hostids:
@@ -1522,35 +1567,42 @@ def graph_get(graphids: Optional[List[str]] = None,
         params["search"] = search
     if filter:
         params["filter"] = filter
-    
+
     result = client.graph.get(**params)
     return format_response(result)
 
 
 # DISCOVERY RULE MANAGEMENT
 @mcp.tool()
-def discoveryrule_get(itemids: Optional[List[str]] = None,
-                      hostids: Optional[List[str]] = None,
-                      templateids: Optional[List[str]] = None,
+def discoveryrule_get(itemids: Union[List[str], str, None] = None,
+                      hostids: Union[List[str], str, None] = None,
+                      templateids: Union[List[str], str, None] = None,
                       output: Union[str, List[str]] = "extend",
-                      search: Optional[Dict[str, str]] = None,
-                      filter: Optional[Dict[str, Any]] = None) -> str:
+                      search: Union[Dict[str, str], str, None] = None,
+                      filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get discovery rules from Zabbix with optional filtering.
-    
+
     Args:
-        itemids: List of discovery rule IDs to retrieve
-        hostids: List of host IDs to filter by
-        templateids: List of template IDs to filter by
+        itemids: List of discovery rule IDs to retrieve (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
+        templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
-        
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
+
     Returns:
         str: JSON formatted list of discovery rules
     """
+    # Parse parameters
+    itemids = parse_list_param(itemids)
+    hostids = parse_list_param(hostids)
+    templateids = parse_list_param(templateids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     client = get_zabbix_client()
     params = {"output": output}
-    
+
     if itemids:
         params["itemids"] = itemids
     if hostids:
@@ -1568,28 +1620,35 @@ def discoveryrule_get(itemids: Optional[List[str]] = None,
 
 # ITEM PROTOTYPE MANAGEMENT
 @mcp.tool()
-def itemprototype_get(itemids: Optional[List[str]] = None,
-                      discoveryids: Optional[List[str]] = None,
-                      hostids: Optional[List[str]] = None,
+def itemprototype_get(itemids: Union[List[str], str, None] = None,
+                      discoveryids: Union[List[str], str, None] = None,
+                      hostids: Union[List[str], str, None] = None,
                       output: Union[str, List[str]] = "extend",
-                      search: Optional[Dict[str, str]] = None,
-                      filter: Optional[Dict[str, Any]] = None) -> str:
+                      search: Union[Dict[str, str], str, None] = None,
+                      filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get item prototypes from Zabbix with optional filtering.
-    
+
     Args:
-        itemids: List of item prototype IDs to retrieve
-        discoveryids: List of discovery rule IDs to filter by
-        hostids: List of host IDs to filter by
+        itemids: List of item prototype IDs to retrieve (or JSON string representation)
+        discoveryids: List of discovery rule IDs to filter by (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
-        
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
+
     Returns:
         str: JSON formatted list of item prototypes
     """
+    # Parse parameters
+    itemids = parse_list_param(itemids)
+    discoveryids = parse_list_param(discoveryids)
+    hostids = parse_list_param(hostids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     client = get_zabbix_client()
     params = {"output": output}
-    
+
     if itemids:
         params["itemids"] = itemids
     if discoveryids:
@@ -1600,7 +1659,7 @@ def itemprototype_get(itemids: Optional[List[str]] = None,
         params["search"] = search
     if filter:
         params["filter"] = filter
-    
+
     result = client.itemprototype.get(**params)
     return format_response(result)
 
@@ -1608,74 +1667,86 @@ def itemprototype_get(itemids: Optional[List[str]] = None,
 # CONFIGURATION EXPORT/IMPORT
 @mcp.tool()
 def configuration_export(format: str = "json",
-                         options: Optional[Dict[str, Any]] = None) -> str:
+                         options: Union[Dict[str, Any], str, None] = None) -> str:
     """Export configuration from Zabbix.
-    
+
     Args:
         format: Export format (json, xml)
-        options: Export options
-        
+        options: Export options (dict or JSON string)
+
     Returns:
         str: JSON formatted export result
     """
+    # Parse parameters
+    options = parse_dict_param(options)
+
     client = get_zabbix_client()
     params = {"format": format}
-    
+
     if options:
         params["options"] = options
-    
+
     result = client.configuration.export(**params)
     return format_response(result)
 
 
 @mcp.tool()
 def configuration_import(format: str, source: str,
-                         rules: Dict[str, Any]) -> str:
+                         rules: Union[Dict[str, Any], str]) -> str:
     """Import configuration to Zabbix.
-    
+
     Args:
         format: Import format (json, xml)
         source: Configuration data to import
-        rules: Import rules
-        
+        rules: Import rules (dict or JSON string)
+
     Returns:
         str: JSON formatted import result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    rules = parse_dict_param(rules)
+
     client = get_zabbix_client()
     params = {
         "format": format,
         "source": source,
         "rules": rules
     }
-    
+
     result = client.configuration.import_(**params)
     return format_response(result)
 
 
 # MACRO MANAGEMENT
 @mcp.tool()
-def usermacro_get(globalmacroids: Optional[List[str]] = None,
-                  hostids: Optional[List[str]] = None,
+def usermacro_get(globalmacroids: Union[List[str], str, None] = None,
+                  hostids: Union[List[str], str, None] = None,
                   output: Union[str, List[str]] = "extend",
-                  search: Optional[Dict[str, str]] = None,
-                  filter: Optional[Dict[str, Any]] = None) -> str:
+                  search: Union[Dict[str, str], str, None] = None,
+                  filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get global macros from Zabbix with optional filtering.
-    
+
     Args:
-        globalmacroids: List of global macro IDs to retrieve
-        hostids: List of host IDs to filter by (for host macros)
+        globalmacroids: List of global macro IDs to retrieve (or JSON string representation)
+        hostids: List of host IDs to filter by (for host macros) (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
-        
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
+
     Returns:
         str: JSON formatted list of global macros
     """
+    # Parse parameters
+    globalmacroids = parse_list_param(globalmacroids)
+    hostids = parse_list_param(hostids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     client = get_zabbix_client()
     params = {"output": output}
-    
+
     if globalmacroids:
         params["globalmacroids"] = globalmacroids
     if hostids:
@@ -1684,7 +1755,7 @@ def usermacro_get(globalmacroids: Optional[List[str]] = None,
         params["search"] = search
     if filter:
         params["filter"] = filter
-    
+
     result = client.usermacro.get(**params)
     return format_response(result)
 
