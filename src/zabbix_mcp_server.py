@@ -165,7 +165,7 @@ def parse_dict_param(value: Union[Dict[str, Any], str, None]) -> Optional[Dict[s
 def host_get(hostids: Union[List[str], str, None] = None,
              groupids: Union[List[str], str, None] = None,
              templateids: Union[List[str], str, None] = None,
-             output: Union[str, List[str]] = "extend",
+             output: Union[str, List[str], None] = None,
              search: Union[Dict[str, str], str, None] = None,
              filter: Union[Dict[str, Any], str, None] = None,
              limit: Optional[int] = None) -> str:
@@ -175,7 +175,9 @@ def host_get(hostids: Union[List[str], str, None] = None,
         hostids: List of host IDs to retrieve (or JSON string representation)
         groupids: List of host group IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: hostid, host, name, status, available, error, maintenance_status
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
@@ -191,6 +193,11 @@ def host_get(hostids: Union[List[str], str, None] = None,
     templateids = parse_list_param(templateids)
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
+
+    # Default to core fields for better performance
+    if output is None:
+        output = ["hostid", "host", "name", "status", "available", "error",
+                  "maintenance_status"]
 
     params = {"output": output}
 
@@ -390,7 +397,7 @@ def item_get(itemids: Union[List[str], str, None] = None,
              hostids: Union[List[str], str, None] = None,
              groupids: Union[List[str], str, None] = None,
              templateids: Union[List[str], str, None] = None,
-             output: Union[str, List[str]] = "extend",
+             output: Union[str, List[str], None] = None,
              search: Union[Dict[str, str], str, None] = None,
              filter: Union[Dict[str, Any], str, None] = None,
              limit: Optional[int] = None) -> str:
@@ -401,7 +408,9 @@ def item_get(itemids: Union[List[str], str, None] = None,
         hostids: List of host IDs to filter by (or JSON string representation)
         groupids: List of host group IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: itemid, name, key_, status, hostid, value_type, delay, type, units, lastvalue, error
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
@@ -418,6 +427,11 @@ def item_get(itemids: Union[List[str], str, None] = None,
     templateids = parse_list_param(templateids)
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
+
+    # Default to core fields for better performance
+    if output is None:
+        output = ["itemid", "name", "key_", "status", "hostid", "value_type",
+                  "delay", "type", "units", "lastvalue", "error"]
 
     params = {"output": output}
 
@@ -539,7 +553,7 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
                 groupids: Union[List[str], str, None] = None,
                 templateids: Union[List[str], str, None] = None,
                 priority: Union[List[int], int, str, None] = None,
-                output: Union[str, List[str]] = "extend",
+                output: Union[str, List[str], None] = None,
                 search: Union[Dict[str, str], str, None] = None,
                 filter: Union[Dict[str, Any], str, None] = None,
                 limit: Optional[int] = None) -> str:
@@ -552,7 +566,9 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
         templateids: List of template IDs to filter by (or JSON string representation)
         priority: Priority/severity level(s) to filter by (0=Not classified, 1=Information,
                   2=Warning, 3=Average, 4=High, 5=Disaster). Can be int, list, or string like "4,5"
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: triggerid, description, priority, status, state, value, lastchange, error, expression
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
@@ -586,6 +602,11 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
                     priority = [int(p.strip()) for p in priority.split(',')]
                 else:
                     priority = int(priority)
+
+    # Default to core fields for better performance
+    if output is None:
+        output = ["triggerid", "description", "priority", "status", "state",
+                  "value", "lastchange", "error", "expression"]
 
     params = {"output": output}
 
@@ -825,7 +846,7 @@ def problem_get(eventids: Union[List[str], str, None] = None,
                 groupids: Union[List[str], str, None] = None,
                 hostids: Union[List[str], str, None] = None,
                 objectids: Union[List[str], str, None] = None,
-                output: Union[str, List[str]] = "extend",
+                output: Union[str, List[str], None] = None,
                 time_from: Optional[int] = None,
                 time_till: Optional[int] = None,
                 recent: bool = False,
@@ -838,7 +859,9 @@ def problem_get(eventids: Union[List[str], str, None] = None,
         groupids: List of host group IDs to filter by (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
         objectids: List of object IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: eventid, objectid, name, severity, clock, acknowledged, r_eventid, suppressed
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         recent: Only recent problems
@@ -860,6 +883,11 @@ def problem_get(eventids: Union[List[str], str, None] = None,
             severities = json.loads(severities)
         except (json.JSONDecodeError, ValueError):
             severities = [int(severities)] if severities.isdigit() else None
+
+    # Default to core fields for better performance
+    if output is None:
+        output = ["eventid", "objectid", "name", "severity", "clock",
+                  "acknowledged", "r_eventid", "suppressed"]
 
     params = {"output": output}
 
