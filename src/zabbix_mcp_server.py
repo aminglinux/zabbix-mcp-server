@@ -538,6 +538,7 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
                 hostids: Union[List[str], str, None] = None,
                 groupids: Union[List[str], str, None] = None,
                 templateids: Union[List[str], str, None] = None,
+                priority: Union[List[int], int, str, None] = None,
                 output: Union[str, List[str]] = "extend",
                 search: Union[Dict[str, str], str, None] = None,
                 filter: Union[Dict[str, Any], str, None] = None,
@@ -549,6 +550,8 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
         hostids: List of host IDs to filter by (or JSON string representation)
         groupids: List of host group IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
+        priority: Priority/severity level(s) to filter by (0=Not classified, 1=Information,
+                  2=Warning, 3=Average, 4=High, 5=Disaster). Can be int, list, or string like "4,5"
         output: Output format (extend or list of specific fields)
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
@@ -567,6 +570,23 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
 
+    # Parse priority parameter - can be int, list of ints, or comma-separated string
+    if priority is not None:
+        if isinstance(priority, str):
+            # Try parsing as JSON array first
+            try:
+                parsed = json.loads(priority)
+                if isinstance(parsed, list):
+                    priority = [int(p) for p in parsed]
+                else:
+                    priority = int(parsed)
+            except (json.JSONDecodeError, ValueError):
+                # Try parsing as comma-separated values
+                if ',' in priority:
+                    priority = [int(p.strip()) for p in priority.split(',')]
+                else:
+                    priority = int(priority)
+
     params = {"output": output}
 
     if triggerids:
@@ -577,6 +597,8 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
         params["groupids"] = groupids
     if templateids:
         params["templateids"] = templateids
+    if priority is not None:
+        params["priority"] = priority
     if search:
         params["search"] = search
     if filter:
