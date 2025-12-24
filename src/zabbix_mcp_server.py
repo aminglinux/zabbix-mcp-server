@@ -160,6 +160,30 @@ def parse_dict_param(value: Union[Dict[str, Any], str, None]) -> Optional[Dict[s
     return value
 
 
+def parse_list_of_dicts_param(value: Union[List[Dict[str, Any]], str, None]) -> Optional[List[Dict[str, Any]]]:
+    """Parse a parameter that should be a list of dicts, handling string representations.
+
+    Args:
+        value: The value to parse (can be a list of dicts, string representation, or None)
+
+    Returns:
+        Optional[List[Dict[str, Any]]]: Parsed list of dicts or None
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        # Try to parse as JSON
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return value
+
+
 # HOST MANAGEMENT
 @mcp.tool()
 def host_get(hostids: Union[List[str], str, None] = None,
@@ -219,26 +243,31 @@ def host_get(hostids: Union[List[str], str, None] = None,
 
 
 @mcp.tool()
-def host_create(host: str, groups: List[Dict[str, str]], 
-                interfaces: List[Dict[str, Any]],
-                templates: Optional[List[Dict[str, str]]] = None,
+def host_create(host: str, groups: Union[List[Dict[str, str]], str],
+                interfaces: Union[List[Dict[str, Any]], str],
+                templates: Union[List[Dict[str, str]], str, None] = None,
                 inventory_mode: int = -1,
                 status: int = 0) -> str:
     """Create a new host in Zabbix.
-    
+
     Args:
         host: Host name
-        groups: List of host groups (format: [{"groupid": "1"}])
-        interfaces: List of host interfaces
-        templates: List of templates to link (format: [{"templateid": "1"}])
+        groups: List of host groups (format: [{"groupid": "1"}] or JSON string)
+        interfaces: List of host interfaces (or JSON string)
+        templates: List of templates to link (format: [{"templateid": "1"}] or JSON string)
         inventory_mode: Inventory mode (-1=disabled, 0=manual, 1=automatic)
         status: Host status (0=enabled, 1=disabled)
-        
+
     Returns:
         str: JSON formatted creation result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    groups = parse_list_of_dicts_param(groups)
+    interfaces = parse_list_of_dicts_param(interfaces)
+    templates = parse_list_of_dicts_param(templates)
+
     client = get_zabbix_client()
     params = {
         "host": host,
@@ -247,10 +276,10 @@ def host_create(host: str, groups: List[Dict[str, str]],
         "inventory_mode": inventory_mode,
         "status": status
     }
-    
+
     if templates:
         params["templates"] = templates
-    
+
     result = client.host.create(**params)
     return format_response(result)
 
@@ -763,32 +792,35 @@ def template_get(templateids: Union[List[str], str, None] = None,
 
 
 @mcp.tool()
-def template_create(host: str, groups: List[Dict[str, str]],
+def template_create(host: str, groups: Union[List[Dict[str, str]], str],
                     name: Optional[str] = None, description: Optional[str] = None) -> str:
     """Create a new template in Zabbix.
-    
+
     Args:
         host: Template technical name
-        groups: List of host groups (format: [{"groupid": "1"}])
+        groups: List of host groups (format: [{"groupid": "1"}] or JSON string)
         name: Template visible name
         description: Template description
-        
+
     Returns:
         str: JSON formatted creation result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    groups = parse_list_of_dicts_param(groups)
+
     client = get_zabbix_client()
     params = {
         "host": host,
         "groups": groups
     }
-    
+
     if name:
         params["name"] = name
     if description:
         params["description"] = description
-    
+
     result = client.template.create(**params)
     return format_response(result)
 
@@ -1105,38 +1137,41 @@ def user_get(userids: Union[List[str], str, None] = None,
 
 
 @mcp.tool()
-def user_create(username: str, passwd: str, usrgrps: List[Dict[str, str]],
+def user_create(username: str, passwd: str, usrgrps: Union[List[Dict[str, str]], str],
                 name: Optional[str] = None, surname: Optional[str] = None,
                 email: Optional[str] = None) -> str:
     """Create a new user in Zabbix.
-    
+
     Args:
         username: Username
         passwd: Password
-        usrgrps: List of user groups (format: [{"usrgrpid": "1"}])
+        usrgrps: List of user groups (format: [{"usrgrpid": "1"}] or JSON string)
         name: First name
         surname: Last name
         email: Email address
-        
+
     Returns:
         str: JSON formatted creation result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    usrgrps = parse_list_of_dicts_param(usrgrps)
+
     client = get_zabbix_client()
     params = {
         "username": username,
         "passwd": passwd,
         "usrgrps": usrgrps
     }
-    
+
     if name:
         params["name"] = name
     if surname:
         params["surname"] = surname
     if email:
         params["email"] = email
-    
+
     result = client.user.create(**params)
     return format_response(result)
 
@@ -1356,33 +1391,39 @@ def maintenance_get(maintenanceids: Optional[List[str]] = None,
 
 @mcp.tool()
 def maintenance_create(name: str, active_since: int, active_till: int,
-                       groupids: Optional[List[str]] = None,
-                       hostids: Optional[List[str]] = None,
-                       timeperiods: Optional[List[Dict[str, Any]]] = None,
+                       groupids: Union[List[str], str, None] = None,
+                       hostids: Union[List[str], str, None] = None,
+                       timeperiods: Union[List[Dict[str, Any]], str, None] = None,
                        description: Optional[str] = None) -> str:
     """Create a new maintenance period in Zabbix.
-    
+
     Args:
         name: Maintenance name
         active_since: Start time (Unix timestamp)
         active_till: End time (Unix timestamp)
-        groupids: List of host group IDs
-        hostids: List of host IDs
-        timeperiods: List of time periods
+        groupids: List of host group IDs (or JSON string representation)
+        hostids: List of host IDs (or JSON string representation)
+        timeperiods: List of time periods (or JSON string representation)
+                     Example: [{"timeperiod_type": 0, "start_date": 0, "period": 1800}]
         description: Maintenance description
-        
+
     Returns:
         str: JSON formatted creation result
     """
     validate_read_only()
-    
+
+    # Parse parameters
+    groupids = parse_list_param(groupids)
+    hostids = parse_list_param(hostids)
+    timeperiods = parse_list_of_dicts_param(timeperiods)
+
     client = get_zabbix_client()
     params = {
         "name": name,
         "active_since": active_since,
         "active_till": active_till
     }
-    
+
     if groupids:
         params["groupids"] = groupids
     if hostids:
@@ -1391,7 +1432,7 @@ def maintenance_create(name: str, active_since: int, active_till: int,
         params["timeperiods"] = timeperiods
     if description:
         params["description"] = description
-    
+
     result = client.maintenance.create(**params)
     return format_response(result)
 
