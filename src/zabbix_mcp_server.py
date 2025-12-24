@@ -102,7 +102,7 @@ def format_response(data: Any) -> str:
 
 def validate_read_only() -> None:
     """Validate that write operations are allowed.
-    
+
     Raises:
         ValueError: If server is in read-only mode
     """
@@ -110,32 +110,90 @@ def validate_read_only() -> None:
         raise ValueError("Server is in read-only mode - write operations are not allowed")
 
 
+def parse_list_param(value: Union[List[str], str, None]) -> Optional[List[str]]:
+    """Parse a parameter that should be a list, handling string representations.
+
+    Args:
+        value: The value to parse (can be a list, string representation, or None)
+
+    Returns:
+        Optional[List[str]]: Parsed list or None
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        # Try to parse as JSON
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # If not valid JSON, treat as single item
+        return [value]
+    return value
+
+
+def parse_dict_param(value: Union[Dict[str, Any], str, None]) -> Optional[Dict[str, Any]]:
+    """Parse a parameter that should be a dict, handling string representations.
+
+    Args:
+        value: The value to parse (can be a dict, string representation, or None)
+
+    Returns:
+        Optional[Dict[str, Any]]: Parsed dict or None
+    """
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        # Try to parse as JSON
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return value
+
+
 # HOST MANAGEMENT
 @mcp.tool()
-def host_get(hostids: Optional[List[str]] = None, 
-             groupids: Optional[List[str]] = None,
-             templateids: Optional[List[str]] = None,
+def host_get(hostids: Union[List[str], str, None] = None,
+             groupids: Union[List[str], str, None] = None,
+             templateids: Union[List[str], str, None] = None,
              output: Union[str, List[str]] = "extend",
-             search: Optional[Dict[str, str]] = None,
-             filter: Optional[Dict[str, Any]] = None,
+             search: Union[Dict[str, str], str, None] = None,
+             filter: Union[Dict[str, Any], str, None] = None,
              limit: Optional[int] = None) -> str:
     """Get hosts from Zabbix with optional filtering.
-    
+
     Args:
-        hostids: List of host IDs to retrieve
-        groupids: List of host group IDs to filter by
-        templateids: List of template IDs to filter by
+        hostids: List of host IDs to retrieve (or JSON string representation)
+        groupids: List of host group IDs to filter by (or JSON string representation)
+        templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
-        
+
     Returns:
         str: JSON formatted list of hosts
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    hostids = parse_list_param(hostids)
+    groupids = parse_list_param(groupids)
+    templateids = parse_list_param(templateids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     params = {"output": output}
-    
+
     if hostids:
         params["hostids"] = hostids
     if groupids:
@@ -148,7 +206,7 @@ def host_get(hostids: Optional[List[str]] = None,
         params["filter"] = filter
     if limit:
         params["limit"] = limit
-    
+
     result = client.host.get(**params)
     return format_response(result)
 
@@ -239,31 +297,37 @@ def host_delete(hostids: List[str]) -> str:
 
 # HOST GROUP MANAGEMENT
 @mcp.tool()
-def hostgroup_get(groupids: Optional[List[str]] = None,
+def hostgroup_get(groupids: Union[List[str], str, None] = None,
                   output: Union[str, List[str]] = "extend",
-                  search: Optional[Dict[str, str]] = None,
-                  filter: Optional[Dict[str, Any]] = None) -> str:
+                  search: Union[Dict[str, str], str, None] = None,
+                  filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get host groups from Zabbix.
-    
+
     Args:
-        groupids: List of group IDs to retrieve
+        groupids: List of group IDs to retrieve (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
-        
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
+
     Returns:
         str: JSON formatted list of host groups
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    groupids = parse_list_param(groupids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     params = {"output": output}
-    
+
     if groupids:
         params["groupids"] = groupids
     if search:
         params["search"] = search
     if filter:
         params["filter"] = filter
-    
+
     result = client.hostgroup.get(**params)
     return format_response(result)
 
@@ -322,32 +386,41 @@ def hostgroup_delete(groupids: List[str]) -> str:
 
 # ITEM MANAGEMENT
 @mcp.tool()
-def item_get(itemids: Optional[List[str]] = None,
-             hostids: Optional[List[str]] = None,
-             groupids: Optional[List[str]] = None,
-             templateids: Optional[List[str]] = None,
+def item_get(itemids: Union[List[str], str, None] = None,
+             hostids: Union[List[str], str, None] = None,
+             groupids: Union[List[str], str, None] = None,
+             templateids: Union[List[str], str, None] = None,
              output: Union[str, List[str]] = "extend",
-             search: Optional[Dict[str, str]] = None,
-             filter: Optional[Dict[str, Any]] = None,
+             search: Union[Dict[str, str], str, None] = None,
+             filter: Union[Dict[str, Any], str, None] = None,
              limit: Optional[int] = None) -> str:
     """Get items from Zabbix with optional filtering.
-    
+
     Args:
-        itemids: List of item IDs to retrieve
-        hostids: List of host IDs to filter by
-        groupids: List of host group IDs to filter by
-        templateids: List of template IDs to filter by
+        itemids: List of item IDs to retrieve (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
+        groupids: List of host group IDs to filter by (or JSON string representation)
+        templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
-        
+
     Returns:
         str: JSON formatted list of items
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    itemids = parse_list_param(itemids)
+    hostids = parse_list_param(hostids)
+    groupids = parse_list_param(groupids)
+    templateids = parse_list_param(templateids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     params = {"output": output}
-    
+
     if itemids:
         params["itemids"] = itemids
     if hostids:
@@ -362,7 +435,7 @@ def item_get(itemids: Optional[List[str]] = None,
         params["filter"] = filter
     if limit:
         params["limit"] = limit
-    
+
     result = client.item.get(**params)
     return format_response(result)
 
@@ -461,32 +534,41 @@ def item_delete(itemids: List[str]) -> str:
 
 # TRIGGER MANAGEMENT
 @mcp.tool()
-def trigger_get(triggerids: Optional[List[str]] = None,
-                hostids: Optional[List[str]] = None,
-                groupids: Optional[List[str]] = None,
-                templateids: Optional[List[str]] = None,
+def trigger_get(triggerids: Union[List[str], str, None] = None,
+                hostids: Union[List[str], str, None] = None,
+                groupids: Union[List[str], str, None] = None,
+                templateids: Union[List[str], str, None] = None,
                 output: Union[str, List[str]] = "extend",
-                search: Optional[Dict[str, str]] = None,
-                filter: Optional[Dict[str, Any]] = None,
+                search: Union[Dict[str, str], str, None] = None,
+                filter: Union[Dict[str, Any], str, None] = None,
                 limit: Optional[int] = None) -> str:
     """Get triggers from Zabbix with optional filtering.
-    
+
     Args:
-        triggerids: List of trigger IDs to retrieve
-        hostids: List of host IDs to filter by
-        groupids: List of host group IDs to filter by
-        templateids: List of template IDs to filter by
+        triggerids: List of trigger IDs to retrieve (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
+        groupids: List of host group IDs to filter by (or JSON string representation)
+        templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
-        
+
     Returns:
         str: JSON formatted list of triggers
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    triggerids = parse_list_param(triggerids)
+    hostids = parse_list_param(hostids)
+    groupids = parse_list_param(groupids)
+    templateids = parse_list_param(templateids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     params = {"output": output}
-    
+
     if triggerids:
         params["triggerids"] = triggerids
     if hostids:
@@ -501,7 +583,7 @@ def trigger_get(triggerids: Optional[List[str]] = None,
         params["filter"] = filter
     if limit:
         params["limit"] = limit
-    
+
     result = client.trigger.get(**params)
     return format_response(result)
 
@@ -592,28 +674,36 @@ def trigger_delete(triggerids: List[str]) -> str:
 
 # TEMPLATE MANAGEMENT
 @mcp.tool()
-def template_get(templateids: Optional[List[str]] = None,
-                 groupids: Optional[List[str]] = None,
-                 hostids: Optional[List[str]] = None,
+def template_get(templateids: Union[List[str], str, None] = None,
+                 groupids: Union[List[str], str, None] = None,
+                 hostids: Union[List[str], str, None] = None,
                  output: Union[str, List[str]] = "extend",
-                 search: Optional[Dict[str, str]] = None,
-                 filter: Optional[Dict[str, Any]] = None) -> str:
+                 search: Union[Dict[str, str], str, None] = None,
+                 filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get templates from Zabbix with optional filtering.
-    
+
     Args:
-        templateids: List of template IDs to retrieve
-        groupids: List of host group IDs to filter by
-        hostids: List of host IDs to filter by
+        templateids: List of template IDs to retrieve (or JSON string representation)
+        groupids: List of host group IDs to filter by (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
-        
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
+
     Returns:
         str: JSON formatted list of templates
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    templateids = parse_list_param(templateids)
+    groupids = parse_list_param(groupids)
+    hostids = parse_list_param(hostids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     params = {"output": output}
-    
+
     if templateids:
         params["templateids"] = templateids
     if groupids:
@@ -624,7 +714,7 @@ def template_get(templateids: Optional[List[str]] = None,
         params["search"] = search
     if filter:
         params["filter"] = filter
-    
+
     result = client.template.get(**params)
     return format_response(result)
 
@@ -709,36 +799,48 @@ def template_delete(templateids: List[str]) -> str:
 
 # PROBLEM MANAGEMENT
 @mcp.tool()
-def problem_get(eventids: Optional[List[str]] = None,
-                groupids: Optional[List[str]] = None,
-                hostids: Optional[List[str]] = None,
-                objectids: Optional[List[str]] = None,
+def problem_get(eventids: Union[List[str], str, None] = None,
+                groupids: Union[List[str], str, None] = None,
+                hostids: Union[List[str], str, None] = None,
+                objectids: Union[List[str], str, None] = None,
                 output: Union[str, List[str]] = "extend",
                 time_from: Optional[int] = None,
                 time_till: Optional[int] = None,
                 recent: bool = False,
-                severities: Optional[List[int]] = None,
+                severities: Union[List[int], str, None] = None,
                 limit: Optional[int] = None) -> str:
     """Get problems from Zabbix with optional filtering.
-    
+
     Args:
-        eventids: List of event IDs to retrieve
-        groupids: List of host group IDs to filter by
-        hostids: List of host IDs to filter by
-        objectids: List of object IDs to filter by
+        eventids: List of event IDs to retrieve (or JSON string representation)
+        groupids: List of host group IDs to filter by (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
+        objectids: List of object IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         recent: Only recent problems
-        severities: List of severity levels to filter by
+        severities: List of severity levels to filter by (or JSON string representation)
         limit: Maximum number of results
-        
+
     Returns:
         str: JSON formatted list of problems
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    eventids = parse_list_param(eventids)
+    groupids = parse_list_param(groupids)
+    hostids = parse_list_param(hostids)
+    objectids = parse_list_param(objectids)
+    if severities is not None and isinstance(severities, str):
+        try:
+            severities = json.loads(severities)
+        except (json.JSONDecodeError, ValueError):
+            severities = [int(severities)] if severities.isdigit() else None
+
     params = {"output": output}
-    
+
     if eventids:
         params["eventids"] = eventids
     if groupids:
@@ -757,39 +859,46 @@ def problem_get(eventids: Optional[List[str]] = None,
         params["severities"] = severities
     if limit:
         params["limit"] = limit
-    
+
     result = client.problem.get(**params)
     return format_response(result)
 
 
 # EVENT MANAGEMENT
 @mcp.tool()
-def event_get(eventids: Optional[List[str]] = None,
-              groupids: Optional[List[str]] = None,
-              hostids: Optional[List[str]] = None,
-              objectids: Optional[List[str]] = None,
+def event_get(eventids: Union[List[str], str, None] = None,
+              groupids: Union[List[str], str, None] = None,
+              hostids: Union[List[str], str, None] = None,
+              objectids: Union[List[str], str, None] = None,
               output: Union[str, List[str]] = "extend",
               time_from: Optional[int] = None,
               time_till: Optional[int] = None,
               limit: Optional[int] = None) -> str:
     """Get events from Zabbix with optional filtering.
-    
+
     Args:
-        eventids: List of event IDs to retrieve
-        groupids: List of host group IDs to filter by
-        hostids: List of host IDs to filter by
-        objectids: List of object IDs to filter by
+        eventids: List of event IDs to retrieve (or JSON string representation)
+        groupids: List of host group IDs to filter by (or JSON string representation)
+        hostids: List of host IDs to filter by (or JSON string representation)
+        objectids: List of object IDs to filter by (or JSON string representation)
         output: Output format (extend or list of specific fields)
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         limit: Maximum number of results
-        
+
     Returns:
         str: JSON formatted list of events
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    eventids = parse_list_param(eventids)
+    groupids = parse_list_param(groupids)
+    hostids = parse_list_param(hostids)
+    objectids = parse_list_param(objectids)
+
     params = {"output": output}
-    
+
     if eventids:
         params["eventids"] = eventids
     if groupids:
@@ -804,7 +913,7 @@ def event_get(eventids: Optional[List[str]] = None,
         params["time_till"] = time_till
     if limit:
         params["limit"] = limit
-    
+
     result = client.event.get(**params)
     return format_response(result)
 
@@ -910,31 +1019,37 @@ def trend_get(itemids: List[str], time_from: Optional[int] = None,
 
 # USER MANAGEMENT
 @mcp.tool()
-def user_get(userids: Optional[List[str]] = None,
+def user_get(userids: Union[List[str], str, None] = None,
              output: Union[str, List[str]] = "extend",
-             search: Optional[Dict[str, str]] = None,
-             filter: Optional[Dict[str, Any]] = None) -> str:
+             search: Union[Dict[str, str], str, None] = None,
+             filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get users from Zabbix with optional filtering.
-    
+
     Args:
-        userids: List of user IDs to retrieve
+        userids: List of user IDs to retrieve (or JSON string representation)
         output: Output format (extend or list of specific fields)
-        search: Search criteria
-        filter: Filter criteria
-        
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
+
     Returns:
         str: JSON formatted list of users
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    userids = parse_list_param(userids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     params = {"output": output}
-    
+
     if userids:
         params["userids"] = userids
     if search:
         params["search"] = search
     if filter:
         params["filter"] = filter
-    
+
     result = client.user.get(**params)
     return format_response(result)
 
@@ -1029,26 +1144,32 @@ def user_delete(userids: List[str]) -> str:
 
 # PROXY MANAGEMENT
 @mcp.tool()
-def proxy_get(proxyids: Optional[List[str]] = None,
+def proxy_get(proxyids: Union[List[str], str, None] = None,
               output: str = "extend",
-              search: Optional[Dict[str, str]] = None,
-              filter: Optional[Dict[str, Any]] = None,
+              search: Union[Dict[str, str], str, None] = None,
+              filter: Union[Dict[str, Any], str, None] = None,
               limit: Optional[int] = None) -> str:
     """Get proxies from Zabbix with optional filtering.
-    
+
     Args:
-        proxyids: List of proxy IDs to retrieve
+        proxyids: List of proxy IDs to retrieve (or JSON string representation)
         output: Output format (extend, shorten, or specific fields)
-        search: Search criteria
-        filter: Filter criteria
+        search: Search criteria (dict or JSON string)
+        filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
-        
+
     Returns:
         str: JSON formatted list of proxies
     """
     client = get_zabbix_client()
+
+    # Parse parameters
+    proxyids = parse_list_param(proxyids)
+    search = parse_dict_param(search)
+    filter = parse_dict_param(filter)
+
     params = {"output": output}
-    
+
     if proxyids:
         params["proxyids"] = proxyids
     if search:
@@ -1057,7 +1178,7 @@ def proxy_get(proxyids: Optional[List[str]] = None,
         params["filter"] = filter
     if limit:
         params["limit"] = limit
-    
+
     result = client.proxy.get(**params)
     return format_response(result)
 
