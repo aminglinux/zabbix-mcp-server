@@ -193,3 +193,5 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 uv.lock
+# Local agent docs
+AGENTS.md

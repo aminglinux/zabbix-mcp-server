@@ -100,6 +100,38 @@ def format_response(data: Any) -> str:
     return json.dumps(data, indent=2, default=str)
 
 
+def normalize_output(output: Union[str, List[str], None],
+                     default_fields: List[str]) -> Union[str, List[str]]:
+    """Normalize Zabbix output parameter to limit fields unless explicitly extended.
+
+    Args:
+        output: Output format (None, "extend", list, JSON list, or comma string)
+        default_fields: Default fields to return when output is not specified
+
+    Returns:
+        Union[str, List[str]]: Normalized output parameter
+    """
+    if output is None:
+        return default_fields
+    if isinstance(output, list):
+        return output
+    if isinstance(output, str):
+        if output.lower() == "extend":
+            return "extend"
+        # Try JSON list first
+        try:
+            parsed = json.loads(output)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        if "," in output:
+            fields = [field.strip() for field in output.split(",") if field.strip()]
+            if fields:
+                return fields
+    return output
+
+
 def validate_read_only() -> None:
     """Validate that write operations are allowed.
 
@@ -218,10 +250,10 @@ def host_get(hostids: Union[List[str], str, None] = None,
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
 
-    # Default to core fields for better performance
-    if output is None:
-        output = ["hostid", "host", "name", "status", "available", "error",
-                  "maintenance_status"]
+    output = normalize_output(
+        output,
+        ["hostid", "host", "name", "status", "available", "error", "maintenance_status"]
+    )
 
     params = {"output": output}
 
@@ -337,14 +369,16 @@ def host_delete(hostids: Union[List[str], str]) -> str:
 # HOST GROUP MANAGEMENT
 @mcp.tool()
 def hostgroup_get(groupids: Union[List[str], str, None] = None,
-                  output: Union[str, List[str]] = "extend",
+                  output: Union[str, List[str], None] = None,
                   search: Union[Dict[str, str], str, None] = None,
                   filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get host groups from Zabbix.
 
     Args:
         groupids: List of group IDs to retrieve (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: groupid, name, flags, internal
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -358,6 +392,7 @@ def hostgroup_get(groupids: Union[List[str], str, None] = None,
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
 
+    output = normalize_output(output, ["groupid", "name", "flags", "internal"])
     params = {"output": output}
 
     if groupids:
@@ -463,10 +498,11 @@ def item_get(itemids: Union[List[str], str, None] = None,
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
 
-    # Default to core fields for better performance
-    if output is None:
-        output = ["itemid", "name", "key_", "status", "hostid", "value_type",
-                  "delay", "type", "units", "lastvalue", "error"]
+    output = normalize_output(
+        output,
+        ["itemid", "name", "key_", "status", "hostid", "value_type",
+         "delay", "type", "units", "lastvalue", "error"]
+    )
 
     params = {"output": output}
 
@@ -641,10 +677,11 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
                 else:
                     priority = int(priority)
 
-    # Default to core fields for better performance
-    if output is None:
-        output = ["triggerid", "description", "priority", "status", "state",
-                  "value", "lastchange", "error", "expression"]
+    output = normalize_output(
+        output,
+        ["triggerid", "description", "priority", "status", "state",
+         "value", "lastchange", "error", "expression"]
+    )
 
     params = {"output": output}
 
@@ -761,7 +798,7 @@ def trigger_delete(triggerids: Union[List[str], str]) -> str:
 def template_get(templateids: Union[List[str], str, None] = None,
                  groupids: Union[List[str], str, None] = None,
                  hostids: Union[List[str], str, None] = None,
-                 output: Union[str, List[str]] = "extend",
+                 output: Union[str, List[str], None] = None,
                  search: Union[Dict[str, str], str, None] = None,
                  filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get templates from Zabbix with optional filtering.
@@ -770,7 +807,9 @@ def template_get(templateids: Union[List[str], str, None] = None,
         templateids: List of template IDs to retrieve (or JSON string representation)
         groupids: List of host group IDs to filter by (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: templateid, host, name, status, description
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -786,6 +825,7 @@ def template_get(templateids: Union[List[str], str, None] = None,
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
 
+    output = normalize_output(output, ["templateid", "host", "name", "status", "description"])
     params = {"output": output}
 
     if templateids:
@@ -931,10 +971,11 @@ def problem_get(eventids: Union[List[str], str, None] = None,
         except (json.JSONDecodeError, ValueError):
             severities = [int(severities)] if severities.isdigit() else None
 
-    # Default to core fields for better performance
-    if output is None:
-        output = ["eventid", "objectid", "name", "severity", "clock",
-                  "acknowledged", "r_eventid", "suppressed"]
+    output = normalize_output(
+        output,
+        ["eventid", "objectid", "name", "severity", "clock",
+         "acknowledged", "r_eventid", "suppressed"]
+    )
 
     params = {"output": output}
 
@@ -967,7 +1008,7 @@ def event_get(eventids: Union[List[str], str, None] = None,
               groupids: Union[List[str], str, None] = None,
               hostids: Union[List[str], str, None] = None,
               objectids: Union[List[str], str, None] = None,
-              output: Union[str, List[str]] = "extend",
+              output: Union[str, List[str], None] = None,
               time_from: Optional[int] = None,
               time_till: Optional[int] = None,
               limit: Optional[int] = None) -> str:
@@ -978,7 +1019,9 @@ def event_get(eventids: Union[List[str], str, None] = None,
         groupids: List of host group IDs to filter by (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
         objectids: List of object IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: eventid, objectid, name, clock, value, acknowledged
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         limit: Maximum number of results
@@ -994,6 +1037,7 @@ def event_get(eventids: Union[List[str], str, None] = None,
     hostids = parse_list_param(hostids)
     objectids = parse_list_param(objectids)
 
+    output = normalize_output(output, ["eventid", "objectid", "name", "clock", "value", "acknowledged"])
     params = {"output": output}
 
     if eventids:
@@ -1126,14 +1170,16 @@ def trend_get(itemids: Union[List[str], str], time_from: Optional[int] = None,
 # USER MANAGEMENT
 @mcp.tool()
 def user_get(userids: Union[List[str], str, None] = None,
-             output: Union[str, List[str]] = "extend",
+             output: Union[str, List[str], None] = None,
              search: Union[Dict[str, str], str, None] = None,
              filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get users from Zabbix with optional filtering.
 
     Args:
         userids: List of user IDs to retrieve (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: userid, username, name, surname, roleid, status
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1147,6 +1193,7 @@ def user_get(userids: Union[List[str], str, None] = None,
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
 
+    output = normalize_output(output, ["userid", "username", "name", "surname", "roleid", "status"])
     params = {"output": output}
 
     if userids:
@@ -1257,7 +1304,7 @@ def user_delete(userids: Union[List[str], str]) -> str:
 # PROXY MANAGEMENT
 @mcp.tool()
 def proxy_get(proxyids: Union[List[str], str, None] = None,
-              output: str = "extend",
+              output: Union[str, List[str], None] = None,
               search: Union[Dict[str, str], str, None] = None,
               filter: Union[Dict[str, Any], str, None] = None,
               limit: Optional[int] = None) -> str:
@@ -1265,7 +1312,9 @@ def proxy_get(proxyids: Union[List[str], str, None] = None,
 
     Args:
         proxyids: List of proxy IDs to retrieve (or JSON string representation)
-        output: Output format (extend, shorten, or specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: proxyid, host, status, description, lastaccess
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
@@ -1280,6 +1329,7 @@ def proxy_get(proxyids: Union[List[str], str, None] = None,
     search = parse_dict_param(search)
     filter = parse_dict_param(filter)
 
+    output = normalize_output(output, ["proxyid", "host", "status", "description", "lastaccess"])
     params = {"output": output}
 
     if proxyids:
@@ -1393,14 +1443,16 @@ def proxy_delete(proxyids: Union[List[str], str]) -> str:
 def maintenance_get(maintenanceids: Union[List[str], str, None] = None,
                     groupids: Union[List[str], str, None] = None,
                     hostids: Union[List[str], str, None] = None,
-                    output: Union[str, List[str]] = "extend") -> str:
+                    output: Union[str, List[str], None] = None) -> str:
     """Get maintenance periods from Zabbix.
 
     Args:
         maintenanceids: List of maintenance IDs to retrieve (or JSON string representation)
         groupids: List of host group IDs to filter by (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: maintenanceid, name, active_since, active_till, description
 
     Returns:
         str: JSON formatted list of maintenance periods
@@ -1411,6 +1463,7 @@ def maintenance_get(maintenanceids: Union[List[str], str, None] = None,
     hostids = parse_list_param(hostids)
 
     client = get_zabbix_client()
+    output = normalize_output(output, ["maintenanceid", "name", "active_since", "active_till", "description"])
     params = {"output": output}
     
     if maintenanceids:
@@ -1531,7 +1584,7 @@ def maintenance_delete(maintenanceids: Union[List[str], str]) -> str:
 def graph_get(graphids: Union[List[str], str, None] = None,
               hostids: Union[List[str], str, None] = None,
               templateids: Union[List[str], str, None] = None,
-              output: Union[str, List[str]] = "extend",
+              output: Union[str, List[str], None] = None,
               search: Union[Dict[str, str], str, None] = None,
               filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get graphs from Zabbix with optional filtering.
@@ -1540,7 +1593,9 @@ def graph_get(graphids: Union[List[str], str, None] = None,
         graphids: List of graph IDs to retrieve (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: graphid, name, width, height, yaxismin, yaxismax
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1555,6 +1610,7 @@ def graph_get(graphids: Union[List[str], str, None] = None,
     filter = parse_dict_param(filter)
 
     client = get_zabbix_client()
+    output = normalize_output(output, ["graphid", "name", "width", "height", "yaxismin", "yaxismax"])
     params = {"output": output}
 
     if graphids:
@@ -1577,7 +1633,7 @@ def graph_get(graphids: Union[List[str], str, None] = None,
 def discoveryrule_get(itemids: Union[List[str], str, None] = None,
                       hostids: Union[List[str], str, None] = None,
                       templateids: Union[List[str], str, None] = None,
-                      output: Union[str, List[str]] = "extend",
+                      output: Union[str, List[str], None] = None,
                       search: Union[Dict[str, str], str, None] = None,
                       filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get discovery rules from Zabbix with optional filtering.
@@ -1586,7 +1642,9 @@ def discoveryrule_get(itemids: Union[List[str], str, None] = None,
         itemids: List of discovery rule IDs to retrieve (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: itemid, name, key_, hostid, status, delay
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1601,6 +1659,7 @@ def discoveryrule_get(itemids: Union[List[str], str, None] = None,
     filter = parse_dict_param(filter)
 
     client = get_zabbix_client()
+    output = normalize_output(output, ["itemid", "name", "key_", "hostid", "status", "delay"])
     params = {"output": output}
 
     if itemids:
@@ -1623,7 +1682,7 @@ def discoveryrule_get(itemids: Union[List[str], str, None] = None,
 def itemprototype_get(itemids: Union[List[str], str, None] = None,
                       discoveryids: Union[List[str], str, None] = None,
                       hostids: Union[List[str], str, None] = None,
-                      output: Union[str, List[str]] = "extend",
+                      output: Union[str, List[str], None] = None,
                       search: Union[Dict[str, str], str, None] = None,
                       filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get item prototypes from Zabbix with optional filtering.
@@ -1632,7 +1691,9 @@ def itemprototype_get(itemids: Union[List[str], str, None] = None,
         itemids: List of item prototype IDs to retrieve (or JSON string representation)
         discoveryids: List of discovery rule IDs to filter by (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: itemid, name, key_, hostid, status, delay
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1647,6 +1708,7 @@ def itemprototype_get(itemids: Union[List[str], str, None] = None,
     filter = parse_dict_param(filter)
 
     client = get_zabbix_client()
+    output = normalize_output(output, ["itemid", "name", "key_", "hostid", "status", "delay"])
     params = {"output": output}
 
     if itemids:
@@ -1723,7 +1785,7 @@ def configuration_import(format: str, source: str,
 @mcp.tool()
 def usermacro_get(globalmacroids: Union[List[str], str, None] = None,
                   hostids: Union[List[str], str, None] = None,
-                  output: Union[str, List[str]] = "extend",
+                  output: Union[str, List[str], None] = None,
                   search: Union[Dict[str, str], str, None] = None,
                   filter: Union[Dict[str, Any], str, None] = None) -> str:
     """Get global macros from Zabbix with optional filtering.
@@ -1731,7 +1793,9 @@ def usermacro_get(globalmacroids: Union[List[str], str, None] = None,
     Args:
         globalmacroids: List of global macro IDs to retrieve (or JSON string representation)
         hostids: List of host IDs to filter by (for host macros) (or JSON string representation)
-        output: Output format (extend or list of specific fields)
+        output: Output format - defaults to core fields only for performance.
+                Use "extend" for all fields, or specify list of fields needed.
+                Default fields: globalmacroid, hostmacroid, macro, value, description, type
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1745,6 +1809,10 @@ def usermacro_get(globalmacroids: Union[List[str], str, None] = None,
     filter = parse_dict_param(filter)
 
     client = get_zabbix_client()
+    output = normalize_output(
+        output,
+        ["globalmacroid", "hostmacroid", "macro", "value", "description", "type"]
+    )
     params = {"output": output}
 
     if globalmacroids:
