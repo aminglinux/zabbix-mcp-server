@@ -34,8 +34,10 @@ mcp = FastMCP("Zabbix MCP Server")
 # Global Zabbix API client
 zabbix_api: Optional[ZabbixAPI] = None
 
+OUTPUT_MODE_ENV = "ZABBIX_MCP_OUTPUT_MODE"
 
-def get_zabbix_client() -> ZabbixAPI:
+
+def _internal_get_zabbix_client() -> ZabbixAPI:
     """Get or create Zabbix API client with proper authentication.
     
     Returns:
@@ -79,7 +81,7 @@ def get_zabbix_client() -> ZabbixAPI:
     return zabbix_api
 
 
-def is_read_only() -> bool:
+def _internal_is_read_only() -> bool:
     """Check if server is in read-only mode.
     
     Returns:
@@ -88,7 +90,7 @@ def is_read_only() -> bool:
     return os.getenv("READ_ONLY", "true").lower() in ("true", "1", "yes")
 
 
-def format_response(data: Any) -> str:
+def _internal_format_response(data: Any) -> str:
     """Format response data as JSON string.
     
     Args:
@@ -100,24 +102,47 @@ def format_response(data: Any) -> str:
     return json.dumps(data, indent=2, default=str)
 
 
-def normalize_output(output: Union[str, List[str], None],
-                     default_fields: List[str]) -> Union[str, List[str]]:
+def _internal_get_output_mode() -> str:
+    """Get output mode for get tools.
+
+    Returns:
+        str: Output mode ("default", "compact", or "extend")
+    """
+    mode = os.getenv(OUTPUT_MODE_ENV, "default").lower()
+    if mode not in {"default", "compact", "extend"}:
+        logger.warning("Invalid %s=%s; falling back to default output mode", OUTPUT_MODE_ENV, mode)
+        return "default"
+    return mode
+
+
+def _internal_normalize_output(output: Union[str, List[str], None],
+                               default_fields: List[str],
+                               compact_fields: List[str]) -> Union[str, List[str]]:
     """Normalize Zabbix output parameter to limit fields unless explicitly extended.
 
     Args:
-        output: Output format (None, "extend", list, JSON list, or comma string)
+        output: Output format (None, "extend", "compact", list, JSON list, or comma string)
         default_fields: Default fields to return when output is not specified
+        compact_fields: Compact fields to return when output is "compact"
 
     Returns:
         Union[str, List[str]]: Normalized output parameter
     """
     if output is None:
+        mode = _internal_get_output_mode()
+        if mode == "extend":
+            return "extend"
+        if mode == "compact":
+            return compact_fields
         return default_fields
     if isinstance(output, list):
         return output
     if isinstance(output, str):
-        if output.lower() == "extend":
+        lowered = output.lower()
+        if lowered == "extend":
             return "extend"
+        if lowered == "compact":
+            return compact_fields
         # Try JSON list first
         try:
             parsed = json.loads(output)
@@ -132,17 +157,17 @@ def normalize_output(output: Union[str, List[str], None],
     return output
 
 
-def validate_read_only() -> None:
+def _internal_validate_read_only() -> None:
     """Validate that write operations are allowed.
 
     Raises:
         ValueError: If server is in read-only mode
     """
-    if is_read_only():
+    if _internal_is_read_only():
         raise ValueError("Server is in read-only mode - write operations are not allowed")
 
 
-def parse_list_param(value: Union[List[str], str, None]) -> Optional[List[str]]:
+def _internal_parse_list_param(value: Union[List[str], str, None]) -> Optional[List[str]]:
     """Parse a parameter that should be a list, handling string representations.
 
     Args:
@@ -168,7 +193,7 @@ def parse_list_param(value: Union[List[str], str, None]) -> Optional[List[str]]:
     return value
 
 
-def parse_dict_param(value: Union[Dict[str, Any], str, None]) -> Optional[Dict[str, Any]]:
+def _internal_parse_dict_param(value: Union[Dict[str, Any], str, None]) -> Optional[Dict[str, Any]]:
     """Parse a parameter that should be a dict, handling string representations.
 
     Args:
@@ -192,7 +217,7 @@ def parse_dict_param(value: Union[Dict[str, Any], str, None]) -> Optional[Dict[s
     return value
 
 
-def parse_list_of_dicts_param(value: Union[List[Dict[str, Any]], str, None]) -> Optional[List[Dict[str, Any]]]:
+def _internal_parse_list_of_dicts_param(value: Union[List[Dict[str, Any]], str, None]) -> Optional[List[Dict[str, Any]]]:
     """Parse a parameter that should be a list of dicts, handling string representations.
 
     Args:
@@ -232,8 +257,10 @@ def host_get(hostids: Union[List[str], str, None] = None,
         groupids: List of host group IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: hostid, host, name, status, available, error, maintenance_status
+                Compact fields: hostid, host, name, status
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
@@ -241,18 +268,19 @@ def host_get(hostids: Union[List[str], str, None] = None,
     Returns:
         str: JSON formatted list of hosts
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    hostids = parse_list_param(hostids)
-    groupids = parse_list_param(groupids)
-    templateids = parse_list_param(templateids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    hostids = _internal_parse_list_param(hostids)
+    groupids = _internal_parse_list_param(groupids)
+    templateids = _internal_parse_list_param(templateids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    output = normalize_output(
+    output = _internal_normalize_output(
         output,
-        ["hostid", "host", "name", "status", "available", "error", "maintenance_status"]
+        ["hostid", "host", "name", "status", "available", "error", "maintenance_status"],
+        ["hostid", "host", "name", "status"]
     )
 
     params = {"output": output}
@@ -271,7 +299,7 @@ def host_get(hostids: Union[List[str], str, None] = None,
         params["limit"] = limit
 
     result = client.host.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -293,14 +321,14 @@ def host_create(host: str, groups: Union[List[Dict[str, str]], str],
     Returns:
         str: JSON formatted creation result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    groups = parse_list_of_dicts_param(groups)
-    interfaces = parse_list_of_dicts_param(interfaces)
-    templates = parse_list_of_dicts_param(templates)
+    groups = _internal_parse_list_of_dicts_param(groups)
+    interfaces = _internal_parse_list_of_dicts_param(interfaces)
+    templates = _internal_parse_list_of_dicts_param(templates)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "host": host,
         "groups": groups,
@@ -313,7 +341,7 @@ def host_create(host: str, groups: Union[List[Dict[str, str]], str],
         params["templates"] = templates
 
     result = client.host.create(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -330,9 +358,9 @@ def host_update(hostid: str, host: Optional[str] = None,
     Returns:
         str: JSON formatted update result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"hostid": hostid}
     
     if host:
@@ -343,7 +371,7 @@ def host_update(hostid: str, host: Optional[str] = None,
         params["status"] = status
     
     result = client.host.update(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -356,14 +384,14 @@ def host_delete(hostids: Union[List[str], str]) -> str:
     Returns:
         str: JSON formatted deletion result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    hostids = parse_list_param(hostids)
+    hostids = _internal_parse_list_param(hostids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.host.delete(*hostids)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # HOST GROUP MANAGEMENT
@@ -377,22 +405,28 @@ def hostgroup_get(groupids: Union[List[str], str, None] = None,
     Args:
         groupids: List of group IDs to retrieve (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: groupid, name, flags, internal
+                Compact fields: groupid, name
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
     Returns:
         str: JSON formatted list of host groups
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    groupids = parse_list_param(groupids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    groupids = _internal_parse_list_param(groupids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    output = normalize_output(output, ["groupid", "name", "flags", "internal"])
+    output = _internal_normalize_output(
+        output,
+        ["groupid", "name", "flags", "internal"],
+        ["groupid", "name"]
+    )
     params = {"output": output}
 
     if groupids:
@@ -403,7 +437,7 @@ def hostgroup_get(groupids: Union[List[str], str, None] = None,
         params["filter"] = filter
 
     result = client.hostgroup.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -416,11 +450,11 @@ def hostgroup_create(name: str) -> str:
     Returns:
         str: JSON formatted creation result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.hostgroup.create(name=name)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -434,11 +468,11 @@ def hostgroup_update(groupid: str, name: str) -> str:
     Returns:
         str: JSON formatted update result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.hostgroup.update(groupid=groupid, name=name)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -451,14 +485,14 @@ def hostgroup_delete(groupids: Union[List[str], str]) -> str:
     Returns:
         str: JSON formatted deletion result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    groupids = parse_list_param(groupids)
+    groupids = _internal_parse_list_param(groupids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.hostgroup.delete(*groupids)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # ITEM MANAGEMENT
@@ -479,8 +513,10 @@ def item_get(itemids: Union[List[str], str, None] = None,
         groupids: List of host group IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: itemid, name, key_, status, hostid, value_type, delay, type, units, lastvalue, error
+                Compact fields: itemid, name, key_, hostid
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
@@ -488,20 +524,21 @@ def item_get(itemids: Union[List[str], str, None] = None,
     Returns:
         str: JSON formatted list of items
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    itemids = parse_list_param(itemids)
-    hostids = parse_list_param(hostids)
-    groupids = parse_list_param(groupids)
-    templateids = parse_list_param(templateids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    itemids = _internal_parse_list_param(itemids)
+    hostids = _internal_parse_list_param(hostids)
+    groupids = _internal_parse_list_param(groupids)
+    templateids = _internal_parse_list_param(templateids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    output = normalize_output(
+    output = _internal_normalize_output(
         output,
         ["itemid", "name", "key_", "status", "hostid", "value_type",
-         "delay", "type", "units", "lastvalue", "error"]
+         "delay", "type", "units", "lastvalue", "error"],
+        ["itemid", "name", "key_", "hostid"]
     )
 
     params = {"output": output}
@@ -522,7 +559,7 @@ def item_get(itemids: Union[List[str], str, None] = None,
         params["limit"] = limit
 
     result = client.item.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -545,9 +582,9 @@ def item_create(name: str, key_: str, hostid: str, type: int,
     Returns:
         str: JSON formatted creation result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "name": name,
         "key_": key_,
@@ -563,7 +600,7 @@ def item_create(name: str, key_: str, hostid: str, type: int,
         params["description"] = description
     
     result = client.item.create(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -582,9 +619,9 @@ def item_update(itemid: str, name: Optional[str] = None,
     Returns:
         str: JSON formatted update result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"itemid": itemid}
     
     if name:
@@ -597,7 +634,7 @@ def item_update(itemid: str, name: Optional[str] = None,
         params["status"] = status
     
     result = client.item.update(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -610,14 +647,14 @@ def item_delete(itemids: Union[List[str], str]) -> str:
     Returns:
         str: JSON formatted deletion result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    itemids = parse_list_param(itemids)
+    itemids = _internal_parse_list_param(itemids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.item.delete(*itemids)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # TRIGGER MANAGEMENT
@@ -641,8 +678,10 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
         priority: Priority/severity level(s) to filter by (0=Not classified, 1=Information,
                   2=Warning, 3=Average, 4=High, 5=Disaster). Can be int, list, or string like "4,5"
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: triggerid, description, priority, status, state, value, lastchange, error, expression
+                Compact fields: triggerid, description, priority, value, lastchange
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
@@ -650,15 +689,15 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
     Returns:
         str: JSON formatted list of triggers
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    triggerids = parse_list_param(triggerids)
-    hostids = parse_list_param(hostids)
-    groupids = parse_list_param(groupids)
-    templateids = parse_list_param(templateids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    triggerids = _internal_parse_list_param(triggerids)
+    hostids = _internal_parse_list_param(hostids)
+    groupids = _internal_parse_list_param(groupids)
+    templateids = _internal_parse_list_param(templateids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
     # Parse priority parameter - can be int, list of ints, or comma-separated string
     if priority is not None:
@@ -677,10 +716,11 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
                 else:
                     priority = int(priority)
 
-    output = normalize_output(
+    output = _internal_normalize_output(
         output,
         ["triggerid", "description", "priority", "status", "state",
-         "value", "lastchange", "error", "expression"]
+         "value", "lastchange", "error", "expression"],
+        ["triggerid", "description", "priority", "value", "lastchange"]
     )
 
     params = {"output": output}
@@ -703,7 +743,7 @@ def trigger_get(triggerids: Union[List[str], str, None] = None,
         params["limit"] = limit
 
     result = client.trigger.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -722,9 +762,9 @@ def trigger_create(description: str, expression: str,
     Returns:
         str: JSON formatted creation result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "description": description,
         "expression": expression,
@@ -736,7 +776,7 @@ def trigger_create(description: str, expression: str,
         params["comments"] = comments
     
     result = client.trigger.create(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -755,9 +795,9 @@ def trigger_update(triggerid: str, description: Optional[str] = None,
     Returns:
         str: JSON formatted update result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"triggerid": triggerid}
     
     if description:
@@ -770,7 +810,7 @@ def trigger_update(triggerid: str, description: Optional[str] = None,
         params["status"] = status
     
     result = client.trigger.update(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -783,14 +823,14 @@ def trigger_delete(triggerids: Union[List[str], str]) -> str:
     Returns:
         str: JSON formatted deletion result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    triggerids = parse_list_param(triggerids)
+    triggerids = _internal_parse_list_param(triggerids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.trigger.delete(*triggerids)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # TEMPLATE MANAGEMENT
@@ -808,24 +848,30 @@ def template_get(templateids: Union[List[str], str, None] = None,
         groupids: List of host group IDs to filter by (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: templateid, host, name, status, description
+                Compact fields: templateid, host, name, status
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
     Returns:
         str: JSON formatted list of templates
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    templateids = parse_list_param(templateids)
-    groupids = parse_list_param(groupids)
-    hostids = parse_list_param(hostids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    templateids = _internal_parse_list_param(templateids)
+    groupids = _internal_parse_list_param(groupids)
+    hostids = _internal_parse_list_param(hostids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    output = normalize_output(output, ["templateid", "host", "name", "status", "description"])
+    output = _internal_normalize_output(
+        output,
+        ["templateid", "host", "name", "status", "description"],
+        ["templateid", "host", "name", "status"]
+    )
     params = {"output": output}
 
     if templateids:
@@ -840,7 +886,7 @@ def template_get(templateids: Union[List[str], str, None] = None,
         params["filter"] = filter
 
     result = client.template.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -857,12 +903,12 @@ def template_create(host: str, groups: Union[List[Dict[str, str]], str],
     Returns:
         str: JSON formatted creation result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    groups = parse_list_of_dicts_param(groups)
+    groups = _internal_parse_list_of_dicts_param(groups)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "host": host,
         "groups": groups
@@ -874,7 +920,7 @@ def template_create(host: str, groups: Union[List[Dict[str, str]], str],
         params["description"] = description
 
     result = client.template.create(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -891,9 +937,9 @@ def template_update(templateid: str, host: Optional[str] = None,
     Returns:
         str: JSON formatted update result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"templateid": templateid}
     
     if host:
@@ -904,7 +950,7 @@ def template_update(templateid: str, host: Optional[str] = None,
         params["description"] = description
     
     result = client.template.update(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -917,14 +963,14 @@ def template_delete(templateids: Union[List[str], str]) -> str:
     Returns:
         str: JSON formatted deletion result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    templateids = parse_list_param(templateids)
+    templateids = _internal_parse_list_param(templateids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.template.delete(*templateids)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # PROBLEM MANAGEMENT
@@ -947,8 +993,10 @@ def problem_get(eventids: Union[List[str], str, None] = None,
         hostids: List of host IDs to filter by (or JSON string representation)
         objectids: List of object IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: eventid, objectid, name, severity, clock, acknowledged, r_eventid, suppressed
+                Compact fields: eventid, name, severity, clock
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         recent: Only recent problems
@@ -958,23 +1006,24 @@ def problem_get(eventids: Union[List[str], str, None] = None,
     Returns:
         str: JSON formatted list of problems
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    eventids = parse_list_param(eventids)
-    groupids = parse_list_param(groupids)
-    hostids = parse_list_param(hostids)
-    objectids = parse_list_param(objectids)
+    eventids = _internal_parse_list_param(eventids)
+    groupids = _internal_parse_list_param(groupids)
+    hostids = _internal_parse_list_param(hostids)
+    objectids = _internal_parse_list_param(objectids)
     if severities is not None and isinstance(severities, str):
         try:
             severities = json.loads(severities)
         except (json.JSONDecodeError, ValueError):
             severities = [int(severities)] if severities.isdigit() else None
 
-    output = normalize_output(
+    output = _internal_normalize_output(
         output,
         ["eventid", "objectid", "name", "severity", "clock",
-         "acknowledged", "r_eventid", "suppressed"]
+         "acknowledged", "r_eventid", "suppressed"],
+        ["eventid", "name", "severity", "clock"]
     )
 
     params = {"output": output}
@@ -999,7 +1048,7 @@ def problem_get(eventids: Union[List[str], str, None] = None,
         params["limit"] = limit
 
     result = client.problem.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # EVENT MANAGEMENT
@@ -1020,8 +1069,10 @@ def event_get(eventids: Union[List[str], str, None] = None,
         hostids: List of host IDs to filter by (or JSON string representation)
         objectids: List of object IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: eventid, objectid, name, clock, value, acknowledged
+                Compact fields: eventid, name, clock, value
         time_from: Start time (Unix timestamp)
         time_till: End time (Unix timestamp)
         limit: Maximum number of results
@@ -1029,15 +1080,19 @@ def event_get(eventids: Union[List[str], str, None] = None,
     Returns:
         str: JSON formatted list of events
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    eventids = parse_list_param(eventids)
-    groupids = parse_list_param(groupids)
-    hostids = parse_list_param(hostids)
-    objectids = parse_list_param(objectids)
+    eventids = _internal_parse_list_param(eventids)
+    groupids = _internal_parse_list_param(groupids)
+    hostids = _internal_parse_list_param(hostids)
+    objectids = _internal_parse_list_param(objectids)
 
-    output = normalize_output(output, ["eventid", "objectid", "name", "clock", "value", "acknowledged"])
+    output = _internal_normalize_output(
+        output,
+        ["eventid", "objectid", "name", "clock", "value", "acknowledged"],
+        ["eventid", "name", "clock", "value"]
+    )
     params = {"output": output}
 
     if eventids:
@@ -1056,7 +1111,7 @@ def event_get(eventids: Union[List[str], str, None] = None,
         params["limit"] = limit
 
     result = client.event.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1072,12 +1127,12 @@ def event_acknowledge(eventids: Union[List[str], str], action: int = 1,
     Returns:
         str: JSON formatted acknowledgment result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    eventids = parse_list_param(eventids)
+    eventids = _internal_parse_list_param(eventids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "eventids": eventids,
         "action": action
@@ -1087,7 +1142,7 @@ def event_acknowledge(eventids: Union[List[str], str], action: int = 1,
         params["message"] = message
 
     result = client.event.acknowledge(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # HISTORY MANAGEMENT
@@ -1113,9 +1168,9 @@ def history_get(itemids: Union[List[str], str], history: int = 0,
         str: JSON formatted history data
     """
     # Parse parameters
-    itemids = parse_list_param(itemids)
+    itemids = _internal_parse_list_param(itemids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "itemids": itemids,
         "history": history,
@@ -1131,7 +1186,7 @@ def history_get(itemids: Union[List[str], str], history: int = 0,
         params["limit"] = limit
 
     result = client.history.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # TREND MANAGEMENT
@@ -1151,9 +1206,9 @@ def trend_get(itemids: Union[List[str], str], time_from: Optional[int] = None,
         str: JSON formatted trend data
     """
     # Parse parameters
-    itemids = parse_list_param(itemids)
+    itemids = _internal_parse_list_param(itemids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"itemids": itemids}
 
     if time_from:
@@ -1164,7 +1219,7 @@ def trend_get(itemids: Union[List[str], str], time_from: Optional[int] = None,
         params["limit"] = limit
 
     result = client.trend.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # USER MANAGEMENT
@@ -1178,22 +1233,28 @@ def user_get(userids: Union[List[str], str, None] = None,
     Args:
         userids: List of user IDs to retrieve (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: userid, username, name, surname, roleid, status
+                Compact fields: userid, username, name, surname, status
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
     Returns:
         str: JSON formatted list of users
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    userids = parse_list_param(userids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    userids = _internal_parse_list_param(userids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    output = normalize_output(output, ["userid", "username", "name", "surname", "roleid", "status"])
+    output = _internal_normalize_output(
+        output,
+        ["userid", "username", "name", "surname", "roleid", "status"],
+        ["userid", "username", "name", "surname", "status"]
+    )
     params = {"output": output}
 
     if userids:
@@ -1204,7 +1265,7 @@ def user_get(userids: Union[List[str], str, None] = None,
         params["filter"] = filter
 
     result = client.user.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1224,12 +1285,12 @@ def user_create(username: str, passwd: str, usrgrps: Union[List[Dict[str, str]],
     Returns:
         str: JSON formatted creation result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    usrgrps = parse_list_of_dicts_param(usrgrps)
+    usrgrps = _internal_parse_list_of_dicts_param(usrgrps)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "username": username,
         "passwd": passwd,
@@ -1244,7 +1305,7 @@ def user_create(username: str, passwd: str, usrgrps: Union[List[Dict[str, str]],
         params["email"] = email
 
     result = client.user.create(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1263,9 +1324,9 @@ def user_update(userid: str, username: Optional[str] = None,
     Returns:
         str: JSON formatted update result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"userid": userid}
     
     if username:
@@ -1278,7 +1339,7 @@ def user_update(userid: str, username: Optional[str] = None,
         params["email"] = email
     
     result = client.user.update(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1291,14 +1352,14 @@ def user_delete(userids: Union[List[str], str]) -> str:
     Returns:
         str: JSON formatted deletion result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    userids = parse_list_param(userids)
+    userids = _internal_parse_list_param(userids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.user.delete(*userids)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # PROXY MANAGEMENT
@@ -1313,8 +1374,10 @@ def proxy_get(proxyids: Union[List[str], str, None] = None,
     Args:
         proxyids: List of proxy IDs to retrieve (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: proxyid, host, status, description, lastaccess
+                Compact fields: proxyid, host, status, lastaccess
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
         limit: Maximum number of results
@@ -1322,14 +1385,18 @@ def proxy_get(proxyids: Union[List[str], str, None] = None,
     Returns:
         str: JSON formatted list of proxies
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
 
     # Parse parameters
-    proxyids = parse_list_param(proxyids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    proxyids = _internal_parse_list_param(proxyids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    output = normalize_output(output, ["proxyid", "host", "status", "description", "lastaccess"])
+    output = _internal_normalize_output(
+        output,
+        ["proxyid", "host", "status", "description", "lastaccess"],
+        ["proxyid", "host", "status", "lastaccess"]
+    )
     params = {"output": output}
 
     if proxyids:
@@ -1342,7 +1409,7 @@ def proxy_get(proxyids: Union[List[str], str, None] = None,
         params["limit"] = limit
 
     result = client.proxy.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1362,9 +1429,9 @@ def proxy_create(host: str, status: int = 5,
     Returns:
         str: JSON formatted creation result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "host": host,
         "status": status,
@@ -1376,7 +1443,7 @@ def proxy_create(host: str, status: int = 5,
         params["description"] = description
     
     result = client.proxy.create(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1398,9 +1465,9 @@ def proxy_update(proxyid: str, host: Optional[str] = None,
     Returns:
         str: JSON formatted update result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"proxyid": proxyid}
     
     if host:
@@ -1415,7 +1482,7 @@ def proxy_update(proxyid: str, host: Optional[str] = None,
         params["tls_accept"] = tls_accept
     
     result = client.proxy.update(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1428,14 +1495,14 @@ def proxy_delete(proxyids: Union[List[str], str]) -> str:
     Returns:
         str: JSON formatted deletion result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    proxyids = parse_list_param(proxyids)
+    proxyids = _internal_parse_list_param(proxyids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.proxy.delete(*proxyids)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # MAINTENANCE MANAGEMENT
@@ -1451,19 +1518,25 @@ def maintenance_get(maintenanceids: Union[List[str], str, None] = None,
         groupids: List of host group IDs to filter by (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: maintenanceid, name, active_since, active_till, description
+                Compact fields: maintenanceid, name, active_since, active_till
 
     Returns:
         str: JSON formatted list of maintenance periods
     """
     # Parse parameters
-    maintenanceids = parse_list_param(maintenanceids)
-    groupids = parse_list_param(groupids)
-    hostids = parse_list_param(hostids)
+    maintenanceids = _internal_parse_list_param(maintenanceids)
+    groupids = _internal_parse_list_param(groupids)
+    hostids = _internal_parse_list_param(hostids)
 
-    client = get_zabbix_client()
-    output = normalize_output(output, ["maintenanceid", "name", "active_since", "active_till", "description"])
+    client = _internal_get_zabbix_client()
+    output = _internal_normalize_output(
+        output,
+        ["maintenanceid", "name", "active_since", "active_till", "description"],
+        ["maintenanceid", "name", "active_since", "active_till"]
+    )
     params = {"output": output}
     
     if maintenanceids:
@@ -1474,7 +1547,7 @@ def maintenance_get(maintenanceids: Union[List[str], str, None] = None,
         params["hostids"] = hostids
     
     result = client.maintenance.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1498,14 +1571,14 @@ def maintenance_create(name: str, active_since: int, active_till: int,
     Returns:
         str: JSON formatted creation result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    groupids = parse_list_param(groupids)
-    hostids = parse_list_param(hostids)
-    timeperiods = parse_list_of_dicts_param(timeperiods)
+    groupids = _internal_parse_list_param(groupids)
+    hostids = _internal_parse_list_param(hostids)
+    timeperiods = _internal_parse_list_of_dicts_param(timeperiods)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "name": name,
         "active_since": active_since,
@@ -1522,7 +1595,7 @@ def maintenance_create(name: str, active_since: int, active_till: int,
         params["description"] = description
 
     result = client.maintenance.create(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1541,9 +1614,9 @@ def maintenance_update(maintenanceid: str, name: Optional[str] = None,
     Returns:
         str: JSON formatted update result
     """
-    validate_read_only()
+    _internal_validate_read_only()
     
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"maintenanceid": maintenanceid}
     
     if name:
@@ -1556,7 +1629,7 @@ def maintenance_update(maintenanceid: str, name: Optional[str] = None,
         params["description"] = description
     
     result = client.maintenance.update(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1569,14 +1642,14 @@ def maintenance_delete(maintenanceids: Union[List[str], str]) -> str:
     Returns:
         str: JSON formatted deletion result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    maintenanceids = parse_list_param(maintenanceids)
+    maintenanceids = _internal_parse_list_param(maintenanceids)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.maintenance.delete(*maintenanceids)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # GRAPH MANAGEMENT
@@ -1594,8 +1667,10 @@ def graph_get(graphids: Union[List[str], str, None] = None,
         hostids: List of host IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: graphid, name, width, height, yaxismin, yaxismax
+                Compact fields: graphid, name, width, height
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1603,14 +1678,18 @@ def graph_get(graphids: Union[List[str], str, None] = None,
         str: JSON formatted list of graphs
     """
     # Parse parameters
-    graphids = parse_list_param(graphids)
-    hostids = parse_list_param(hostids)
-    templateids = parse_list_param(templateids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    graphids = _internal_parse_list_param(graphids)
+    hostids = _internal_parse_list_param(hostids)
+    templateids = _internal_parse_list_param(templateids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    client = get_zabbix_client()
-    output = normalize_output(output, ["graphid", "name", "width", "height", "yaxismin", "yaxismax"])
+    client = _internal_get_zabbix_client()
+    output = _internal_normalize_output(
+        output,
+        ["graphid", "name", "width", "height", "yaxismin", "yaxismax"],
+        ["graphid", "name", "width", "height"]
+    )
     params = {"output": output}
 
     if graphids:
@@ -1625,7 +1704,7 @@ def graph_get(graphids: Union[List[str], str, None] = None,
         params["filter"] = filter
 
     result = client.graph.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # DISCOVERY RULE MANAGEMENT
@@ -1643,8 +1722,10 @@ def discoveryrule_get(itemids: Union[List[str], str, None] = None,
         hostids: List of host IDs to filter by (or JSON string representation)
         templateids: List of template IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: itemid, name, key_, hostid, status, delay
+                Compact fields: itemid, name, key_, hostid
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1652,14 +1733,18 @@ def discoveryrule_get(itemids: Union[List[str], str, None] = None,
         str: JSON formatted list of discovery rules
     """
     # Parse parameters
-    itemids = parse_list_param(itemids)
-    hostids = parse_list_param(hostids)
-    templateids = parse_list_param(templateids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    itemids = _internal_parse_list_param(itemids)
+    hostids = _internal_parse_list_param(hostids)
+    templateids = _internal_parse_list_param(templateids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    client = get_zabbix_client()
-    output = normalize_output(output, ["itemid", "name", "key_", "hostid", "status", "delay"])
+    client = _internal_get_zabbix_client()
+    output = _internal_normalize_output(
+        output,
+        ["itemid", "name", "key_", "hostid", "status", "delay"],
+        ["itemid", "name", "key_", "hostid"]
+    )
     params = {"output": output}
 
     if itemids:
@@ -1674,7 +1759,7 @@ def discoveryrule_get(itemids: Union[List[str], str, None] = None,
         params["filter"] = filter
     
     result = client.discoveryrule.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # ITEM PROTOTYPE MANAGEMENT
@@ -1692,8 +1777,10 @@ def itemprototype_get(itemids: Union[List[str], str, None] = None,
         discoveryids: List of discovery rule IDs to filter by (or JSON string representation)
         hostids: List of host IDs to filter by (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: itemid, name, key_, hostid, status, delay
+                Compact fields: itemid, name, key_, hostid
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1701,14 +1788,18 @@ def itemprototype_get(itemids: Union[List[str], str, None] = None,
         str: JSON formatted list of item prototypes
     """
     # Parse parameters
-    itemids = parse_list_param(itemids)
-    discoveryids = parse_list_param(discoveryids)
-    hostids = parse_list_param(hostids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    itemids = _internal_parse_list_param(itemids)
+    discoveryids = _internal_parse_list_param(discoveryids)
+    hostids = _internal_parse_list_param(hostids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    client = get_zabbix_client()
-    output = normalize_output(output, ["itemid", "name", "key_", "hostid", "status", "delay"])
+    client = _internal_get_zabbix_client()
+    output = _internal_normalize_output(
+        output,
+        ["itemid", "name", "key_", "hostid", "status", "delay"],
+        ["itemid", "name", "key_", "hostid"]
+    )
     params = {"output": output}
 
     if itemids:
@@ -1723,7 +1814,7 @@ def itemprototype_get(itemids: Union[List[str], str, None] = None,
         params["filter"] = filter
 
     result = client.itemprototype.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # CONFIGURATION EXPORT/IMPORT
@@ -1740,16 +1831,16 @@ def configuration_export(format: str = "json",
         str: JSON formatted export result
     """
     # Parse parameters
-    options = parse_dict_param(options)
+    options = _internal_parse_dict_param(options)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {"format": format}
 
     if options:
         params["options"] = options
 
     result = client.configuration.export(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 @mcp.tool()
@@ -1765,12 +1856,12 @@ def configuration_import(format: str, source: str,
     Returns:
         str: JSON formatted import result
     """
-    validate_read_only()
+    _internal_validate_read_only()
 
     # Parse parameters
-    rules = parse_dict_param(rules)
+    rules = _internal_parse_dict_param(rules)
 
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     params = {
         "format": format,
         "source": source,
@@ -1778,7 +1869,7 @@ def configuration_import(format: str, source: str,
     }
 
     result = client.configuration.import_(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # MACRO MANAGEMENT
@@ -1794,8 +1885,10 @@ def usermacro_get(globalmacroids: Union[List[str], str, None] = None,
         globalmacroids: List of global macro IDs to retrieve (or JSON string representation)
         hostids: List of host IDs to filter by (for host macros) (or JSON string representation)
         output: Output format - defaults to core fields only for performance.
-                Use "extend" for all fields, or specify list of fields needed.
+                Use "extend" for all fields, "compact" for minimal fields,
+                or specify list of fields needed.
                 Default fields: globalmacroid, hostmacroid, macro, value, description, type
+                Compact fields: globalmacroid, hostmacroid, macro, type
         search: Search criteria (dict or JSON string)
         filter: Filter criteria (dict or JSON string)
 
@@ -1803,15 +1896,16 @@ def usermacro_get(globalmacroids: Union[List[str], str, None] = None,
         str: JSON formatted list of global macros
     """
     # Parse parameters
-    globalmacroids = parse_list_param(globalmacroids)
-    hostids = parse_list_param(hostids)
-    search = parse_dict_param(search)
-    filter = parse_dict_param(filter)
+    globalmacroids = _internal_parse_list_param(globalmacroids)
+    hostids = _internal_parse_list_param(hostids)
+    search = _internal_parse_dict_param(search)
+    filter = _internal_parse_dict_param(filter)
 
-    client = get_zabbix_client()
-    output = normalize_output(
+    client = _internal_get_zabbix_client()
+    output = _internal_normalize_output(
         output,
-        ["globalmacroid", "hostmacroid", "macro", "value", "description", "type"]
+        ["globalmacroid", "hostmacroid", "macro", "value", "description", "type"],
+        ["globalmacroid", "hostmacroid", "macro", "type"]
     )
     params = {"output": output}
 
@@ -1825,7 +1919,7 @@ def usermacro_get(globalmacroids: Union[List[str], str, None] = None,
         params["filter"] = filter
 
     result = client.usermacro.get(**params)
-    return format_response(result)
+    return _internal_format_response(result)
 
 
 # SYSTEM INFO
@@ -1836,12 +1930,12 @@ def apiinfo_version() -> str:
     Returns:
         str: JSON formatted API version info
     """
-    client = get_zabbix_client()
+    client = _internal_get_zabbix_client()
     result = client.apiinfo.version()
-    return format_response(result)
+    return _internal_format_response(result)
 
 
-def get_transport_config() -> Dict[str, Any]:
+def _internal_get_transport_config() -> Dict[str, Any]:
     """Get transport configuration from environment variables.
     
     Returns:
@@ -1881,14 +1975,14 @@ def main():
     
     # Get transport configuration
     try:
-        transport_config = get_transport_config()
+        transport_config = _internal_get_transport_config()
         logger.info(f"Transport: {transport_config['transport']}")
     except ValueError as e:
         logger.error(f"Transport configuration error: {e}")
         return 1
     
     # Log configuration
-    logger.info(f"Read-only mode: {is_read_only()}")
+    logger.info(f"Read-only mode: {_internal_is_read_only()}")
     logger.info(f"Zabbix URL: {os.getenv('ZABBIX_URL', 'Not configured')}")
     
     try:

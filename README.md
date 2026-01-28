@@ -127,6 +127,7 @@ A comprehensive Model Context Protocol (MCP) server for Zabbix integration using
 
 - `READ_ONLY` - Set to `true`, `1`, or `yes` to enable read-only mode (only GET operations allowed)
 - `VERIFY_SSL` - Enable/disable SSL certificate verification (default: `true`)
+- `ZABBIX_MCP_OUTPUT_MODE` - Default output mode for GET tools: `default`, `compact`, or `extend` (default: `default`)
 
 ### Transport Configuration
 
